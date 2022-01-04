@@ -1,0 +1,6 @@
+apikeys:
+  - name: My API key
+    passphrase: xxx
+    key: xxx
+    permissions: ["view"]
+    portfolio: Default
