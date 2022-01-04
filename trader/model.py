@@ -1,5 +1,7 @@
 from typing import List
+
 from pydantic import BaseModel
+
 
 class ApiKey(BaseModel):
     name: str
@@ -8,12 +10,14 @@ class ApiKey(BaseModel):
     permissions: List[str]
     portfolio: str
 
+
 class TradingStrategy(BaseModel):
     buy: float
     sell: float
     maker: float
     taker: float
     window: float
+
 
 class Config(BaseModel):
     sandbox: bool

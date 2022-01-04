@@ -1,5 +1,7 @@
 import yaml
+
 from trader.model import Config
+
 
 def load_config() -> Config:
     with open("./resources/config.yaml", "r", encoding="utf-8") as f:

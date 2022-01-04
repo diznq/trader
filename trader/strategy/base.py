@@ -1,5 +1,7 @@
 from typing import Optional
+
 from trader.model import TradingStrategy
+
 
 class BaseStrategy:
     strategy: TradingStrategy
