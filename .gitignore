@@ -3,3 +3,4 @@ venv/
 resources/config.yaml
 stok.csv
 data/*.csv
+logs/*.log

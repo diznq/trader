@@ -1,3 +1,4 @@
+sandbox: true
 currency: EUR
 currency_precision: 100
 target: ETH
@@ -9,6 +10,13 @@ apikey:
   passphrase: xxx
   key: xxx
   permissions: ["view"]
+  portfolio: Default
+
+sandbox_apikey:
+  name: xxx
+  passphrase: xxx
+  key: xxx
+  permissions: ["view", "trade", "transfer"]
   portfolio: Default
 
 strategy:
