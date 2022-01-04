@@ -1,3 +1,4 @@
+from typing import Optional
 from trader.model import TradingStrategy
 
 class BaseStrategy:
@@ -11,3 +12,6 @@ class BaseStrategy:
 
     def will_sell(self, change, buy_price, price) -> bool:
         return False
+
+    def sell_price(self, change, buy_price, price) -> Optional[float]:
+        return None

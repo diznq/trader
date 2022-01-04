@@ -13,10 +13,13 @@ class TradingStrategy(BaseModel):
     sell: float
     maker: float
     taker: float
+    window: float
 
 class Config(BaseModel):
     currency: str
-    pair: str
+    target: str
+    target_precision: int
+    currency_precision: int
     portfolio: str
-    apikeys: List[ApiKey]
+    apikey: ApiKey
     strategy: TradingStrategy

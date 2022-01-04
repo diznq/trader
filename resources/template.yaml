@@ -1,16 +1,19 @@
 currency: EUR
-pair: ETH-EUR
+currency_precision: 100
+target: ETH
+target_precision: 1000000
 portfolio: Default
 
-apikeys:
-  - name: My API Key
-    passphrase: xxx
-    key: xxx
-    permissions: ["view"]
-    portfolio: Default
+apikey:
+  name: xxx
+  passphrase: xxx
+  key: xxx
+  permissions: ["view"]
+  portfolio: Default
 
 strategy:
   buy: -0.04
   sell: 0.04
   maker: 0.005
   taker: 0.005
+  window: 360

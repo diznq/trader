@@ -136,7 +136,12 @@ optional = false
 python-versions = ">=3.7.1"
 
 [package.dependencies]
-numpy = {version = ">=1.21.0", markers = "python_version >= \"3.10\""}
+numpy = [
+    {version = ">=1.17.3", markers = "platform_machine != \"aarch64\" and platform_machine != \"arm64\" and python_version < \"3.10\""},
+    {version = ">=1.19.2", markers = "platform_machine == \"aarch64\" and python_version < \"3.10\""},
+    {version = ">=1.20.0", markers = "platform_machine == \"arm64\" and python_version < \"3.10\""},
+    {version = ">=1.21.0", markers = "python_version >= \"3.10\""},
+]
 python-dateutil = ">=2.7.3"
 pytz = ">=2017.3"
 
@@ -331,8 +336,8 @@ python-versions = "!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*,>=2.7"
 
 [metadata]
 lock-version = "1.1"
-python-versions = "^3.10"
-content-hash = "38ce3b3af14277302fdcb79aa761a02979c9bb0410bb1b680f744ff2f71ad75e"
+python-versions = "^3.8"
+content-hash = "296c66c3c03dae64171112956777b70f94d7e3e8ba1cbe5dd51473a7de38738b"
 
 [metadata.files]
 anyio = [
