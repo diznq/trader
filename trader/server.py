@@ -1,8 +1,10 @@
 from fastapi import FastAPI
 
-app = FastAPI()
+from trader.util import load_config
 
+app = FastAPI()
+cfg = load_config()
 
 @app.get("/")
 async def root():
-    return {"message": "Hello World"}
+    return load_config()
