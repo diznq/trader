@@ -1,6 +1,16 @@
+currency: EUR
+pair: ETH-EUR
+portfolio: Default
+
 apikeys:
-  - name: My API key
+  - name: My API Key
     passphrase: xxx
     key: xxx
     permissions: ["view"]
     portfolio: Default
+
+strategy:
+  buy: -0.04
+  sell: 0.04
+  maker: 0.005
+  taker: 0.005

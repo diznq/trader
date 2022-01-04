@@ -9,11 +9,14 @@ class ApiKey(BaseModel):
     portfolio: str
 
 class TradingStrategy(BaseModel):
-    buy: -0.04
-    sell: 0.025
-    maker: 0.005
-    taker: 0.005
+    buy: float
+    sell: float
+    maker: float
+    taker: float
 
 class Config(BaseModel):
+    currency: str
+    pair: str
+    portfolio: str
     apikeys: List[ApiKey]
     strategy: TradingStrategy
