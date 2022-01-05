@@ -165,10 +165,7 @@ class Trader:
         change = price / last - 1
 
         state = self.read_state()
-        logger.info(
-            "%s | %s | Max: %f, now: %f, chg: %f"
-            % (self.pair, state, last, price, change)
-        )
+        # logger.info( "%s | %s | Max: %f, now: %f, chg: %f" % (self.pair, state, last, price, change) )
         if state == "buy":
             self.period = 0.25
             buy_price = price
