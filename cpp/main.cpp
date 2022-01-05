@@ -15,6 +15,12 @@ typedef std::chrono::time_point<std::chrono::system_clock, std::chrono::microsec
 #define ROLL_MAX 12
 #define ROLL_SCALE 20
 
+#define DIP_MAX 0.1
+#define SELL_MAX 0.1
+
+#define MAKER_FEE 0.005
+#define TAKER_FEE 0.005
+
 struct Record {
     long long time;
     double price;
@@ -72,8 +78,6 @@ public:
     double _ccy = 0.0;
     double _crypto = 0.0;
     double _buyPrice = -1.0;
-    double _maker = 0.005;
-    double _taker = 0.005;
 
     Chad() {
 
@@ -90,24 +94,24 @@ public:
     }
     
     bool will_sell(double change, double price) const {
-        return _buyPrice >= 0 && (price / _buyPrice - 1.0) >= (_sell + _maker + _taker);
+        return _buyPrice >= 0 && (price / _buyPrice - 1.0) >= (_sell + MAKER_FEE + TAKER_FEE);
     }
     
     void buy(double price){
-        double amt = (_ccy / price / (1 + _maker));
-        _ccy -= amt * price * (1 + _maker);
+        double amt = (_ccy / price / (1 + MAKER_FEE));
+        _ccy -= amt * price * (1 + MAKER_FEE);
         _crypto += amt;
         _buyPrice = price;
     }
         
     void sell(double price){
-        _ccy += _crypto * price * (1 - _taker);
+        _ccy += _crypto * price * (1 - TAKER_FEE);
         _crypto = 0;
         _buyPrice = -1.0;
     }
 
     double equity(double price) const {
-        return _ccy; // + _crypto * price / (1.0 + _maker);
+        return _ccy; // + _crypto * price / (1.0 + MAKER_FEE);
     }
 
     double step(const Record& record) {
@@ -134,8 +138,8 @@ void worker(){
 
     while(true){
         int window = wnd(rng) * ROLL_SCALE;
-        double buy = dbl(rng) * -0.1;
-        double sell = dbl(rng) * 0.1;
+        double buy = dbl(rng) * -DIP_MAX;
+        double sell = dbl(rng) * SELL_MAX;
         Chad ch(1000.0, buy, sell);
         std::vector<Record>& arr = rolls[window];
         for(Record& rec : arr){
