@@ -171,7 +171,14 @@ class Trader:
         )
         if state == "buy":
             self.period = 0.25
-            if not self.strategy.will_buy(change, price):
+            buy_price = price
+
+            if self.config.place_immediately:
+                buy_price = self.strategy.buy_price(change, last, price)
+            elif not self.strategy.will_buy(change, price):
+                return True
+
+            if buy_price is None:
                 return True
             # Let's determine how much we have and how much we can afford to buy
             ccy = (
@@ -181,7 +188,7 @@ class Trader:
 
             # Align buy price to tick size of currency and calculate maximum we can buy with that
             buy_price = (
-                math.floor(price * self.config.currency_precision)
+                math.floor(buy_price * self.config.currency_precision)
                 / self.config.currency_precision
             )
             much = ccy / buy_price

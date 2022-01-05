@@ -15,6 +15,9 @@ trade_partition: 0.8
 # Name of portfolio
 portfolio: Default
 
+# Place buy order immediately
+place_immediately: true
+
 # Main API key
 apikey:
   name: hash

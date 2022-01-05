@@ -26,3 +26,4 @@ class Config(BaseModel):
     apikey: ApiKey
     sandbox_apikey: ApiKey
     strategy: TradingStrategy
+    place_immediately: bool

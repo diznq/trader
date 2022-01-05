@@ -17,3 +17,6 @@ class BaseStrategy:
 
     def sell_price(self, change, buy_price, price) -> Optional[float]:
         return None
+
+    def buy_price(self, change, max_price, price) -> Optional[float]:
+        return None
