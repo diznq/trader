@@ -86,8 +86,6 @@ class Trader:
             self.client = cbpro.AuthenticatedClient(
                 apikey.name, apikey.key, apikey.passphrase
             )
-        self.ws_client = TraderWSClient(pair, self)
-        self.ws_client.start()
 
         # Let's cache points of our interest
         whitelist = [config.target, config.currency]
@@ -100,6 +98,9 @@ class Trader:
                 self.ccy = float(account["available"])
             elif account["currency"] == config.target:
                 self.tgt = float(account["available"])
+
+        self.ws_client = TraderWSClient(pair, self)
+        self.ws_client.start()
 
         logger.info("Trader active, currency: %f, crypto: %f" % (self.ccy, self.tgt))
 
@@ -126,6 +127,9 @@ class Trader:
 
     def get_account(self, ccy: str):
         return self.client.get_account(self.accountIds[ccy])
+
+    def get_xchg_rate(self) -> Optional[float]:
+        return self.read_num("xchg")
 
     def tick(self):
         t = time.perf_counter()
@@ -161,13 +165,19 @@ class Trader:
         change = price / last - 1
 
         state = self.read_state()
-        # logger.info("%s | %s | Max: %f, now: %f, chg: %f" % (self.pair, state, last, price, change))
+        logger.info(
+            "%s | %s | Max: %f, now: %f, chg: %f"
+            % (self.pair, state, last, price, change)
+        )
         if state == "buy":
             self.period = 0.25
             if not self.strategy.will_buy(change, price):
                 return True
             # Let's determine how much we have and how much we can afford to buy
-            ccy = float(self.get_account(self.config.currency)["available"])
+            ccy = (
+                float(self.get_account(self.config.currency)["available"])
+                * self.config.trade_partition
+            )
 
             # Align buy price to tick size of currency and calculate maximum we can buy with that
             buy_price = (
@@ -307,6 +317,7 @@ class Trader:
             "txid": int(obj["trade_id"]),
         }
         time = pd.to_datetime([obj["time"]])[0]
+        self.write_num("xchg", new_row["close"])
         self.trade_stream.loc[time] = new_row
         self.tick()
 
@@ -341,7 +352,7 @@ class TraderWSClient(cbpro.WebsocketClient):
         pass
 
 
-trader = Trader(redis, cfg, "stok.csv")
+trader = Trader(redis, cfg, "stock_dataset.csv")
 
 
 @app.get("/")
@@ -353,15 +364,20 @@ async def root():
 async def portfolio():
     accounts = trader.client.get_accounts()
     holdings = dict()
+    equity = 0
     whitelist = [cfg.target, cfg.currency]
     for account in accounts:
         if account["currency"] in whitelist:
+            if account["currency"] == cfg.currency:
+                equity += float(account["available"])
+            elif account["currency"] == cfg.target:
+                equity += float(account["available"]) * trader.get_xchg_rate()
             holdings[account["currency"]] = {
                 "balance": account["balance"],
                 "hold": account["hold"],
                 "available": account["available"],
             }
-    return holdings
+    return {"equity": equity, "holdings": holdings}
 
 
 @app.on_event("shutdown")

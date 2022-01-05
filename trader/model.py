@@ -1,5 +1,3 @@
-from typing import List
-
 from pydantic import BaseModel
 
 
@@ -7,8 +5,6 @@ class ApiKey(BaseModel):
     name: str
     passphrase: str
     key: str
-    permissions: List[str]
-    portfolio: str
 
 
 class TradingStrategy(BaseModel):
@@ -25,6 +21,7 @@ class Config(BaseModel):
     target: str
     target_precision: int
     currency_precision: int
+    trade_partition: float
     portfolio: str
     apikey: ApiKey
     sandbox_apikey: ApiKey

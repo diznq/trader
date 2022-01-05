@@ -1,6 +1,6 @@
 __pycache__
 venv/
 resources/config.yaml
-stok.csv
+stock_dataset.csv
 data/*.csv
 logs/*.log
