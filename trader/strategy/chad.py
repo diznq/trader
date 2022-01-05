@@ -1,4 +1,5 @@
 from typing import Optional
+
 from trader.model import TradingStrategy
 from trader.strategy.base import BaseStrategy
 
@@ -24,7 +25,6 @@ class Chad(BaseStrategy):
             1 + self.strategy.maker + self.strategy.taker + self.strategy.sell
         )
 
-    
     def buy_price(self, change, max_price, price) -> Optional[float]:
         if max_price is None:
             return None
