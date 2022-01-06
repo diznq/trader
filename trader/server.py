@@ -3,6 +3,7 @@ import logging
 import math
 import os
 import time
+from types import LambdaType
 from typing import Optional
 
 import cbpro
@@ -107,8 +108,21 @@ class Trader:
         value = self.redis.get(self.name + ":" + entity)
         return value.decode("utf-8") if value is not None else None
 
-    def write(self, entity, value) -> Optional[bool]:
-        return self.redis.set(self.name + ":" + entity, value)
+    def write(self, entity, value, ex: int=None) -> Optional[bool]:
+        if ex is None:
+            return self.redis.set(self.name + ":" + entity, value)
+        return self.redis.setex(self.name + ":" + entity, ex, value)
+
+    def cached(self, entity, ex: int, getter: LambdaType) -> Optional[str]:
+        key = self.name + ":" + entity
+        value = self.redis.get(key)
+        if value is None:
+            value = getter()
+            self.redis.setex(key, ex, value)
+        return value
+
+    def cached_obj(self, entity, ex: int, getter: LambdaType) -> Optional[str]:
+        return json.loads(self.cached(entity, ex, lambda: json.dumps(getter())))
 
     def read_state(self) -> str:
         state = self.read("state")
@@ -323,6 +337,9 @@ class Trader:
         self.trade_stream.to_csv(self.out_path)
         self.ws_client.close()
 
+    def get_accounts(self):
+        return self.cached_obj("accounts", 5, lambda: self.client.get_accounts())
+
 
 class TraderWSClient(cbpro.WebsocketClient):
     pair: str
@@ -359,7 +376,7 @@ async def root():
 
 @app.get("/portfolio")
 async def portfolio():
-    accounts = trader.client.get_accounts()
+    accounts = trader.get_accounts()
     holdings = dict()
     equity = 0
     whitelist = [cfg.target, cfg.currency]
