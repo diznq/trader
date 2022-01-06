@@ -369,12 +369,12 @@ class TraderWSClient(cbpro.WebsocketClient):
 trader = Trader(redis, cfg, "stock_dataset.csv")
 
 
-@app.get("/")
+@app.get("/trader/")
 async def root():
     return json.loads(trader.trade_stream.tail().to_json())
 
 
-@app.get("/portfolio")
+@app.get("/trader/portfolio")
 async def portfolio():
     accounts = trader.get_accounts()
     holdings = dict()
