@@ -14,16 +14,12 @@ class Chad(BaseStrategy):
     def will_sell(self, change, buy_price, price) -> bool:
         if buy_price is None:
             return False
-        return (price / buy_price - 1) >= (
-            self.strategy.sell + self.strategy.taker + self.strategy.maker
-        )
+        return (price / buy_price - 1) >= (self.strategy.sell + self.strategy.taker + self.strategy.maker)
 
     def sell_price(self, change, buy_price, price) -> Optional[float]:
         if buy_price is None:
             return None
-        return buy_price * (
-            1 + self.strategy.maker + self.strategy.taker + self.strategy.sell
-        )
+        return buy_price * (1 + self.strategy.maker + self.strategy.taker + self.strategy.sell)
 
     def buy_price(self, change, max_price, price) -> Optional[float]:
         if max_price is None:

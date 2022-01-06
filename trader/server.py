@@ -85,9 +85,7 @@ class Trader:
                 api_url="https://api-public.sandbox.exchange.coinbase.com",
             )
         else:
-            self.client = cbpro.AuthenticatedClient(
-                apikey.name, apikey.key, apikey.passphrase
-            )
+            self.client = cbpro.AuthenticatedClient(apikey.name, apikey.key, apikey.passphrase)
 
         # Let's cache points of our interest
         whitelist = [config.target, config.currency]
@@ -144,9 +142,7 @@ class Trader:
             return True
 
         # Get rid of old stuff
-        created_time = pd.Timestamp.utcnow() - pd.DateOffset(
-            minutes=self.trading_strategy.window * 2
-        )
+        created_time = pd.Timestamp.utcnow() - pd.DateOffset(minutes=self.trading_strategy.window * 2)
         self.trade_stream = self.trade_stream[self.trade_stream.index > created_time]
 
         # Create a copy that we work with from now on
@@ -154,14 +150,7 @@ class Trader:
         # Get current price
         price = df["close"].tail(1)[0]
         # Get previous max over time window
-        last = (
-            df["close"]
-            .rolling(str(self.trading_strategy.window) + "min")
-            .max()
-            .dropna()
-            .tail(2)
-            .head(1)[0]
-        )
+        last = df["close"].rolling(str(self.trading_strategy.window) + "min").max().dropna().tail(2).head(1)[0]
         # Calculate change
         change = price / last - 1
 
@@ -179,26 +168,17 @@ class Trader:
             if buy_price is None:
                 return True
             # Let's determine how much we have and how much we can afford to buy
-            ccy = (
-                float(self.get_account(self.config.currency)["available"])
-                * self.config.trade_partition
-            )
+            ccy = float(self.get_account(self.config.currency)["available"]) * self.config.trade_partition
 
             # Align buy price to tick size of currency and calculate maximum we can buy with that
-            buy_price = (
-                math.floor(buy_price * self.config.currency_precision)
-                / self.config.currency_precision
-            )
+            buy_price = math.floor(buy_price * self.config.currency_precision) / self.config.currency_precision
             much = ccy / buy_price
 
             # As we are trying to buy as quick as possible, we are considered takers
             much = much / (1 + self.trading_strategy.taker)
 
             # Make sure we use exact tick size for amount
-            much = (
-                math.floor(much * self.config.target_precision)
-                / self.config.target_precision
-            )
+            much = math.floor(much * self.config.target_precision) / self.config.target_precision
 
             # Estimate cost
             total_cost = much * buy_price
@@ -245,10 +225,7 @@ class Trader:
                 logger.warning("Buy order was cancelled, reverting to buy stage")
                 self.write_state("buy")
             elif status["status"] == "done":
-                logger.info(
-                    "Successfuly bought %s, balance: %f %s"
-                    % (self.config.target, much, self.config.target)
-                )
+                logger.info("Successfuly bought %s, balance: %f %s" % (self.config.target, much, self.config.target))
                 self.write_state("bought")
         elif state == "bought":
             self.period = self.tick_period * 4
@@ -258,10 +235,7 @@ class Trader:
                 return True
 
             # Make sure sell price is aligned to tick size of target asset
-            sell_price = (
-                math.ceil(sell_price * self.config.currency_precision)
-                / self.config.currency_precision
-            )
+            sell_price = math.ceil(sell_price * self.config.currency_precision) / self.config.currency_precision
 
             # Calculate how much coin we have and how much we'll probably earn, we are maker now
             # as we don't expect sell to happen immediately
@@ -311,10 +285,7 @@ class Trader:
                 logger.warning("Sell order was cancelled, reverting to bought stage")
                 self.write_state("bought")
             elif status["status"] == "done":
-                logger.info(
-                    "Successfuly sold %s, balance: %f %s"
-                    % (self.config.target, much, self.config.target)
-                )
+                logger.info("Successfuly sold %s, balance: %f %s" % (self.config.target, much, self.config.target))
                 self.write_state("buy")
 
         return True
