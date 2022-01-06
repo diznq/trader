@@ -48,6 +48,10 @@ class Trader:
     tgt: float = 0
     tick_period: float = 0.25
 
+    last_change: float = 0
+    current_price: float = 0
+    current_max: float = 0
+
     def __init__(self, redis: Redis, config: Config, in_data: str = None) -> None:
         pair = config.target + "-" + config.currency
         self.pair = pair
@@ -167,6 +171,10 @@ class Trader:
         last = df["close"].rolling(str(self.trading_strategy.window) + "min").max().dropna().tail(2).head(1)[0]
         # Calculate change
         change = price / last - 1
+
+        self.current_price = price
+        self.current_max = last
+        self.last_change = change
 
         state = self.read_state()
         # logger.info( "%s | %s | Max: %f, now: %f, chg: %f" % (self.pair, state, last, price, change) )
@@ -340,6 +348,18 @@ class Trader:
     def get_accounts(self):
         return self.cached_obj("accounts", 5, lambda: self.client.get_accounts())
 
+    def get_status(self):
+        return self.cached_obj("appstatus", 1, lambda: {
+            "max": self.current_max,
+            "current": self.current_price,
+            "change": self.last_change,
+            "state": self.read_state(),
+            "buy_price": self.read_num("buy_price"),
+            "sell_price": self.read_num("sell_price"),
+            "buy_amount": self.read_num("buy_amount"),
+            "sell_amount": self.read_num("sell_amount"),
+        })
+
 
 class TraderWSClient(cbpro.WebsocketClient):
     pair: str
@@ -371,7 +391,7 @@ trader = Trader(redis, cfg, "stock_dataset.csv")
 
 @app.get("/trader/")
 async def root():
-    return json.loads(trader.trade_stream.tail().to_json())
+    return trader.get_status()
 
 
 @app.get("/trader/portfolio")
