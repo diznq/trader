@@ -6,6 +6,7 @@
 #include <vector>
 #include <deque>
 #include <random>
+#include "argparse.hpp"
 #include "date.h"
 
 // this is why they call C++ cancer
@@ -181,12 +182,38 @@ void worker(){
 }
 
 int main(int argc, const char **argv){
-    const std::string target = argc > 1 ? argv[1] : "BTC-EUR";
-    std::vector<Record> records;
-    std::ifstream f("../stock_dataset.csv");
+    argparse::ArgumentParser parser("simulation");
+    
+    parser
+        .add_argument("--pair")
+        .default_value<std::string>("LTC-EUR")
+        .help("traded pair, i.e. BTC-EUR");
+
+    parser
+        .add_argument("--csv")
+        .default_value<std::string>("../stock_dataset.csv")
+        .help("input dataset");
+
+    try {
+        parser.parse_args(argc, argv);
+    } catch(const std::runtime_error& err) {
+        std::cerr << err.what() << std::endl;
+        std::cerr << parser;
+        return 1;
+    }
+
+    
+    std::string target = parser.get<std::string>("pair");
     std::string line;
 
-    std::cout << "Loading data for " << target << std::endl;
+    std::cout << "Loading data for " << target << " in " << parser.get<std::string>("csv") <<  std::endl;
+
+    std::vector<Record> records;
+    std::ifstream f(parser.get<std::string>("csv"));
+    if(!f.is_open()){
+        std::cerr << "Couldn't open input dataset!" << std::endl;
+        return 1;
+    }
 
     while(std::getline(f, line)){
         if(line.find(target) == std::string::npos) continue;
