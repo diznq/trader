@@ -27,3 +27,4 @@ class Config(BaseModel):
     sandbox_apikey: ApiKey
     strategy: TradingStrategy
     place_immediately: bool
+    tick_rate: float

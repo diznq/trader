@@ -11,12 +11,12 @@
 // this is why they call C++ cancer
 typedef std::chrono::time_point<std::chrono::system_clock, std::chrono::microseconds> timestamp;
 
-#define ROLL_MIN 3
-#define ROLL_MAX 12
-#define ROLL_SCALE 20
+#define ROLL_MIN 10
+#define ROLL_MAX 560
+#define ROLL_SCALE 1
 
-#define DIP_MAX 0.1
-#define SELL_MAX 0.1
+#define DIP_MAX 0.2
+#define SELL_MAX 0.2
 
 #define MAKER_FEE 0.005
 #define TAKER_FEE 0.005
@@ -50,19 +50,38 @@ std::vector<Record> roll(const std::vector<Record>& records, long long minutes){
     long long window = minutes * 60000000;
     std::vector<Record> copy(records);
     std::deque<Record> frame;
+
+    double maxSoFar = 0.0;
+    long long maxTime = 0;
+
     // This implementation is inefficient as hell, but simple enough
     for(size_t i=0; i<copy.size(); i++){
         Record& now = copy[i];
         frame.emplace_back(now);
+        if(now.price > maxSoFar){
+            maxSoFar = now.price;
+            maxTime = now.time;
+        }
+
         long long bound = now.time - window;
         while(!frame.empty() && frame.front().time < bound){
             frame.pop_front();
         }
-        double maxPrice = 0.0;
-        for(Record& rec : frame){
-            maxPrice = std::max(maxPrice, rec.price);
+
+        if(maxTime < bound){
+            maxSoFar = 0.0;
         }
-        now.max = maxPrice;
+
+        if(maxSoFar == 0.0){
+            for(Record& rec : frame){
+                if(rec.price > maxSoFar){
+                    maxSoFar = rec.price;
+                    maxTime = rec.time;
+                }
+            }
+        }
+
+        now.max = maxSoFar;
         now.change = 0.0;
         if(i > 0){
             now.change = now.price / copy[i - 1].max - 1.0;
@@ -78,6 +97,8 @@ public:
     double _ccy = 0.0;
     double _crypto = 0.0;
     double _buyPrice = -1.0;
+    int _buys = 0;
+    int _sells = 0;
 
     Chad() {
 
@@ -90,7 +111,7 @@ public:
     }
 
     bool will_buy(double change, double price) const {
-        return change <= _buy;
+        return _ccy > 0 && change <= _buy;
     }
     
     bool will_sell(double change, double price) const {
@@ -99,15 +120,19 @@ public:
     
     void buy(double price){
         double amt = (_ccy / price / (1 + MAKER_FEE));
+        amt = floor(amt * 1000000.0) / 1000000.0;
+        if(amt <= 0.0) return;
         _ccy -= amt * price * (1 + MAKER_FEE);
         _crypto += amt;
         _buyPrice = price;
+        _buys++;
     }
         
     void sell(double price){
         _ccy += _crypto * price * (1 - TAKER_FEE);
         _crypto = 0;
         _buyPrice = -1.0;
+        _sells++;
     }
 
     double equity(double price) const {
@@ -125,7 +150,7 @@ public:
 
 };
 
-std::vector<Record> rolls[1000];
+std::vector<Record> rolls[(ROLL_MAX + 1) * ROLL_SCALE];
 
 double best = 0.0;
 std::mutex mtx;
@@ -149,14 +174,14 @@ void worker(){
         mtx.lock();
         if(eq > best){
             best = eq;
-            printf("Chad(buy=%.6f, sell=%.6f, window=%d): %.3f\n", buy, sell, window, eq);
+            printf("Chad(buy=%.6f, sell=%.6f, window=%d): %.3f | buys=%d, sells=%d\n", buy, sell, window, eq, ch._buys, ch._sells);
         }
         mtx.unlock();
     }
 }
 
 int main(int argc, const char **argv){
-    const std::string target = argc >= 1 ? argv[1] : "BTC-EUR";
+    const std::string target = argc > 1 ? argv[1] : "BTC-EUR";
     std::vector<Record> records;
     std::ifstream f("../stock_dataset.csv");
     std::string line;
@@ -171,7 +196,7 @@ int main(int argc, const char **argv){
     std::cout << "Precomputing rolling maxes" << std::endl;
 
     for(int i=ROLL_MIN; i<=ROLL_MAX; i++){
-        std::cout << "Precomputing rolling max with window " << (i * ROLL_SCALE) << std::endl;
+        //std::cout << "Precomputing rolling max with window " << (i * ROLL_SCALE) << std::endl;
         rolls[i * ROLL_SCALE] = roll(records, i * ROLL_SCALE);
     }
 

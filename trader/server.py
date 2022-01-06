@@ -45,11 +45,13 @@ class Trader:
     pair: str
     ccy: float = 0
     tgt: float = 0
+    tick_period: float = 0.25
 
     def __init__(self, redis: Redis, config: Config, in_data: str = None) -> None:
         pair = config.target + "-" + config.currency
         self.pair = pair
-        self.period = 0.25
+        self.tick_period = 1.0 / config.tick_rate
+        self.period = self.tick_period
         self.name = "Trader:" + pair.replace("-", ":")
         self.trading_strategy = config.strategy
         self.config = config
@@ -99,8 +101,7 @@ class Trader:
             elif account["currency"] == config.target:
                 self.tgt = float(account["available"])
 
-        self.ws_client = TraderWSClient(pair, self)
-        self.ws_client.start()
+        self.start_ws_client()
 
         logger.info("Trader active, currency: %f, crypto: %f" % (self.ccy, self.tgt))
 
@@ -167,7 +168,7 @@ class Trader:
         state = self.read_state()
         # logger.info( "%s | %s | Max: %f, now: %f, chg: %f" % (self.pair, state, last, price, change) )
         if state == "buy":
-            self.period = 0.25
+            self.period = self.tick_period
             buy_price = price
 
             if self.config.place_immediately:
@@ -236,7 +237,7 @@ class Trader:
                     logger.error("Buying failed, reason: %s" % (resp["message"]))
                     self.write_state("buy")
         elif state == "buying":
-            self.period = 1
+            self.period = self.tick_period * 4
             much = self.read_num("buy_amount")
             order = json.loads(self.read("buy_response"))
             status = self.client.get_order(order["id"])
@@ -250,7 +251,7 @@ class Trader:
                 )
                 self.write_state("bought")
         elif state == "bought":
-            self.period = 1
+            self.period = self.tick_period * 4
             buy_price = self.read_num("buy_price")
             sell_price = self.strategy.sell_price(change, buy_price, price)
             if sell_price is None:
@@ -302,7 +303,7 @@ class Trader:
                 self.write_state("bought")
 
         elif state == "selling":
-            self.period = 1
+            self.period = self.tick_period * 4
             much = self.read_num("sell_amount")
             order = json.loads(self.read("sell_response"))
             status = self.client.get_order(order["id"])
@@ -333,6 +334,18 @@ class Trader:
         self.trade_stream.loc[time] = new_row
         self.tick()
 
+    def start_ws_client(self):
+        self.ws_client = TraderWSClient(self.pair, self)
+        self.ws_client.start()
+
+    def on_ws_dead(self):
+        if self.active:
+            logger.warning("Websocket client closed, reconnecting")
+            time.sleep(1)
+            self.start_ws_client()
+        else:
+            logger.info("Websocket client closed")
+
     def on_shutdown(self):
         logger.info("Shutting down")
         self.active = False
@@ -355,13 +368,14 @@ class TraderWSClient(cbpro.WebsocketClient):
             self.url = "wss://ws-feed-public.sandbox.exchange.coinbase.com/"
         self.products = [self.pair]
         self.channels = [{"name": "ticker", "product_ids": [self.pair]}]
+        logger.info("Websocket client opened")
 
     def on_message(self, msg):
         if "price" in msg and "type" in msg:
             self.parent.on_price(msg)
 
     def on_close(self):
-        pass
+        self.parent.on_ws_dead()
 
 
 trader = Trader(redis, cfg, "stock_dataset.csv")

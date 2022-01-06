@@ -1,11 +1,15 @@
+# Sandbox mode
 sandbox: true
 
-# Currency that bot trades with and it's resolution (1€ can be split to 100 cents)
-currency: EUR
+# Ticks per second
+tick_rate: 4
+
+# Currency that bot trades with and it's resolution (1$ can be split to 100 cents)
+currency: USD
 currency_precision: 100
 
 # Target asset that bot trades with and it's resolution (1 coin can be split to 1 000 000 sub coins)
-target: ETH
+target: LTC
 target_precision: 1000000
 
 # Partition of money that's available to bot, i.e. if we have 1000€ on account and this is
@@ -16,7 +20,7 @@ trade_partition: 0.8
 portfolio: Default
 
 # Place buy order immediately
-place_immediately: true
+place_immediately: false
 
 # Main API key
 apikey:
@@ -33,11 +37,11 @@ sandbox_apikey:
 # Trading strategy
 strategy:
   # Time window that we calculate max stock price in, i.e. 360 = maximum price in 6 hours
-  window: 360
+  window: 40
   # Buy when stocks dip this amount
-  buy: -0.015
-  # Sell when stocks raise this amount + maker + taker
-  sell: 0.015
+  buy: -0.01
+  # Sell when stocks raise this amount (+ maker + taker)
+  sell: 0.01
   # Fees
   maker: 0.005
   taker: 0.005
