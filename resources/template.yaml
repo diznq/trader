@@ -40,6 +40,8 @@ strategy:
   window: 40
   # Buy when stocks dip this amount
   buy: -0.01
+  # Buy underpricing (buy for buy price * (1 - this))
+  buy_underprice: 0
   # Sell when stocks raise this amount (+ maker + taker)
   sell: 0.01
   # Fees

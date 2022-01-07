@@ -189,6 +189,9 @@ class Trader:
 
             if buy_price is None:
                 return True
+
+            buy_price = buy_price * (1.0 - self.trading_strategy.buy_underprice)
+
             # Let's determine how much we have and how much we can afford to buy
             ccy = float(self.get_account(self.config.currency)["available"]) * self.config.trade_partition
 
