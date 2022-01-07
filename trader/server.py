@@ -260,9 +260,9 @@ class Trader:
         elif state == "bought":
             self.period = self.tick_period * 4
             buy_price = self.read_num("buy_price")
-            sell_price = self.strategy.sell_price(change, buy_price / (1.0 - self.trading_strategy.buy_underprice), price)
-            if sell_price is None:
+            if buy_price is None:
                 return True
+            sell_price = self.strategy.sell_price(change, buy_price / (1.0 - self.trading_strategy.buy_underprice), price)
 
             # Make sure sell price is aligned to tick size of target asset
             sell_price = math.ceil(sell_price * self.config.currency_precision) / self.config.currency_precision
