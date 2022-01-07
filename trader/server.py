@@ -190,6 +190,7 @@ class Trader:
             if buy_price is None:
                 return True
 
+            trigger_price = buy_price
             buy_price = buy_price * (1.0 - self.trading_strategy.buy_underprice)
 
             # Let's determine how much we have and how much we can afford to buy
@@ -225,8 +226,12 @@ class Trader:
                 # Overwrite state first, so it can't happen that due to laggy internet connection
                 # this state-branch would get called once again and try to buy twice :D
                 self.write_state("buying")
+                self.write_num("buy_trigger_price", trigger_price)
                 self.write_num("buy_price", buy_price)
                 self.write_num("buy_amount", much)
+                self.write_num("buy_cost", total_cost + fees)
+                self.write_num("buy_fees", fees)
+                self.write_num("buy_value", total_cost)
 
                 # Place an order and save response
                 resp = self.client.place_limit_order(
@@ -285,7 +290,10 @@ class Trader:
             # so we can't place it twice :D
             self.write_state("selling")
             self.write_num("sell_price", sell_price)
-            self.write_num("sell_amount", total_earn - fees)
+            self.write_num("sell_amount", avail)
+            self.write_num("sell_value", total_earn - fees)
+            self.write_num("sell_fees", fees)
+            self.write_num("sell_revenue", total_earn)
 
             # Place an order and save response
             resp = self.client.place_limit_order(
@@ -357,10 +365,21 @@ class Trader:
             "current": self.current_price,
             "change": self.last_change,
             "state": self.read_state(),
-            "buy_price": self.read_num("buy_price"),
-            "sell_price": self.read_num("sell_price"),
-            "buy_amount": self.read_num("buy_amount"),
-            "sell_amount": self.read_num("sell_amount"),
+            "buy": {
+                "price": self.read_num("buy_price"),
+                "trigger": self.read_num("buy_trigger_price"),
+                "amount": self.read_num("buy_amount"),
+                "value": self.read("buy_value"),
+                "cost": self.read("buy_cost"),
+                "fees": self.read("buy_fees")
+            },
+            "sell": {
+                "price": self.read_num("sell_price"),
+                "amount": self.read_num("sell_amount"),
+                "value": self.read("sell_value"),
+                "revenue": self.read("sell_revenue"),
+                "fees": self.read("sell_fees")
+            }
         })
 
 
