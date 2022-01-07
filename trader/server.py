@@ -328,7 +328,7 @@ class Trader:
         self.tick()
 
     def start_ws_client(self):
-        self.ws_client = TraderWSClient(self.pair, self)
+        self.ws_client = TraderWSClient(self.pair, self, self.config.sandbox)
         self.ws_client.start()
 
     def on_ws_dead(self):
@@ -374,6 +374,7 @@ class TraderWSClient(cbpro.WebsocketClient):
         self.url = "wss://ws-feed.pro.coinbase.com/"
         if self.sandbox:
             self.url = "wss://ws-feed-public.sandbox.exchange.coinbase.com/"
+        print(self.url)
         self.products = [self.pair]
         self.channels = [{"name": "ticker", "product_ids": [self.pair]}]
         logger.info("Websocket client opened")
