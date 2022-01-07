@@ -422,19 +422,23 @@ async def portfolio():
     accounts = trader.get_accounts()
     holdings = dict()
     equity = 0
+    avail_equity = 0
     whitelist = [cfg.target, cfg.currency]
     for account in accounts:
         if account["currency"] in whitelist:
             if account["currency"] == cfg.currency:
-                equity += float(account["available"])
+                equity += float(account["balance"])
+                avail_equity += float(account["available"])
             elif account["currency"] == cfg.target:
-                equity += float(account["available"]) * trader.get_xchg_rate()
+                xchg = trader.get_xchg_rate()
+                equity += float(account["balance"]) * xchg
+                avail_equity += float(account["available"]) * xchg
             holdings[account["currency"]] = {
                 "balance": account["balance"],
                 "hold": account["hold"],
                 "available": account["available"],
             }
-    return {"equity": equity, "holdings": holdings}
+    return {"equity": {"balance": equity, "available": avail_equity}, "holdings": holdings}
 
 
 @app.on_event("shutdown")
