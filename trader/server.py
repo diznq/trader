@@ -262,7 +262,7 @@ class Trader:
             buy_price = self.read_num("buy_price")
             if buy_price is None:
                 return True
-            sell_price = self.strategy.sell_price(change, buy_price / (1.0 - self.trading_strategy.buy_underprice), price)
+            sell_price = self.strategy.sell_price(change, buy_price, price)
 
             # Make sure sell price is aligned to tick size of target asset
             sell_price = math.ceil(sell_price * self.config.currency_precision) / self.config.currency_precision
@@ -294,6 +294,7 @@ class Trader:
             self.write_num("sell_value", total_earn - fees)
             self.write_num("sell_fees", fees)
             self.write_num("sell_revenue", total_earn)
+            self.write_num("margin", sell_price / buy_price)
 
             # Place an order and save response
             resp = self.client.place_limit_order(
@@ -379,7 +380,8 @@ class Trader:
                 "value": self.read("sell_value"),
                 "revenue": self.read("sell_revenue"),
                 "fees": self.read("sell_fees")
-            }
+            },
+            "margin": self.read_num("margin")
         })
 
 

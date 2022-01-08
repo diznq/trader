@@ -18,6 +18,7 @@ typedef std::chrono::time_point<std::chrono::system_clock, std::chrono::microsec
 
 double DIP_MAX=0.2;
 double SELL_MAX=0.2;
+double BUY_UNDERPRICE=0.01;
 
 #define MAKER_FEE 0.005
 #define TAKER_FEE 0.005
@@ -175,7 +176,9 @@ void worker(){
         mtx.lock();
         if(eq > best){
             best = eq;
-            printf("Chad(buy=%.6f, sell=%.6f, window=%d): %.3f | buys=%d, sells=%d\n", buy, sell, window, eq, ch._buys, ch._sells);
+            double trigger = buy;
+            buy = (1 + buy) / (1 - BUY_UNDERPRICE) - 1;
+            printf("Chad(buy=%.6f, sell=%.6f, trigger=%.4f, window=%d): %.3f | buys=%d, sells=%d\n", buy, sell, trigger, window, eq, ch._buys, ch._sells);
         }
         mtx.unlock();
     }
@@ -205,6 +208,12 @@ int main(int argc, const char **argv){
         .default_value<double>(0.05)
         .help("sell threshold")
         .scan<'f', double>();
+        
+    parser
+        .add_argument("--under")
+        .default_value<double>(0.01)
+        .help("buy underprice")
+        .scan<'f', double>();
 
     try {
         parser.parse_args(argc, argv);
@@ -219,6 +228,7 @@ int main(int argc, const char **argv){
     std::string line;
     DIP_MAX = parser.get<double>("buy");
     SELL_MAX = parser.get<double>("sell");
+    BUY_UNDERPRICE = parser.get<double>("under");
 
     std::cout << "Loading data for " << target << " in " << parser.get<std::string>("csv") <<  std::endl;
 
