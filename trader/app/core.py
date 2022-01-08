@@ -230,15 +230,16 @@ class Trader:
                     self.write_state("buy")
         elif state == "buying":
             self.period = self.tick_period * 4
-            much = self.read_num("buy_amount")
             order = json.loads(self.read("buy_response"))
             status = self.client.get_order(order["id"])
             if "message" in status:
                 logger.warning("Buy order was cancelled, reverting to buy stage")
                 self.write_state("buy")
             elif status["status"] == "done":
+                # make sure it's written very first, so even if get_acc fails, we are safe
+                self.write_state("bought") 
+                much = float(self.get_account(self.config.target)["balance"])
                 logger.info("Successfuly bought %s, balance: %f %s" % (self.config.target, much, self.config.target))
-                self.write_state("bought")
         elif state == "bought":
             self.period = self.tick_period * 4
             buy_price = self.read_num("buy_price")
@@ -294,15 +295,15 @@ class Trader:
 
         elif state == "selling":
             self.period = self.tick_period * 4
-            much = self.read_num("sell_amount")
             order = json.loads(self.read("sell_response"))
             status = self.client.get_order(order["id"])
             if "message" in status:
                 logger.warning("Sell order was cancelled, reverting to bought stage")
                 self.write_state("bought")
             elif status["status"] == "done":
-                logger.info("Successfuly sold %s, balance: %f %s" % (self.config.target, much, self.config.target))
                 self.write_state("buy")
+                much = float(self.get_account(self.config.currency)["balance"])
+                logger.info("Successfuly sold %s, balance: %f %s" % (self.config.target, much, self.config.currency))
 
         return True
 
