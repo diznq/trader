@@ -3,7 +3,7 @@ import math
 import os
 import time
 from types import LambdaType
-from typing import Optional
+from typing import Dict, Optional
 
 import cbpro
 import pandas as pd
@@ -25,9 +25,8 @@ class Trader:
     trading_strategy: TradingStrategy
 
     trade_stream: pd.DataFrame
+    equity_stream: pd.DataFrame
     pair: str
-    ccy: float = 0
-    tgt: float = 0
     tick_period: float = 0.25
 
     last_change: float = 0
@@ -81,14 +80,14 @@ class Trader:
         for account in accounts:
             if account["currency"] in whitelist:
                 self.accountIds[account["currency"]] = account["id"]
-            if account["currency"] == config.currency:
-                self.ccy = float(account["available"])
-            elif account["currency"] == config.target:
-                self.tgt = float(account["available"])
+            if account["currency"] in [config.currency, config.target]:
+                self.write_num(account["currency"], float(account["balance"]))
 
+        self.equity_stream = pd.DataFrame(columns=["equity", "ccy", "crypto"], index=pd.to_datetime([], utc=True))
+        balances = self.get_balances(False)
         self.start_ws_client()
 
-        logger.info("Trader active, currency: %f, crypto: %f" % (self.ccy, self.tgt))
+        logger.info("Trader active, currency: %f, crypto: %f" % (balances[config.currency], balances[config.target]))
 
     def read(self, entity) -> str:
         value = self.redis.get(self.name + ":" + entity)
@@ -130,16 +129,50 @@ class Trader:
     def get_xchg_rate(self) -> Optional[float]:
         return self.read_num("xchg")
 
-    def tick(self):
+    def update_balances(self) -> Dict[str, float]:
+        dct = dict()
+        for ccy in [self.config.currency, self.config.target]:
+            acc = self.get_account(ccy)
+            dct[ccy] = float(acc["balance"])
+            self.write_num(ccy, float(acc["balance"]))
+        return dct
+
+    def get_balances(self, cached=True) -> Dict[str, float]:
+        if not cached:
+            return self.update_balances()
+        dct = dict()
+        for ccy in [self.config.currency, self.config.target]:
+            dct[ccy] = self.read_num(ccy)
+        return dct
+
+    def calc_equity(self, balances: Dict[str, float]) -> float:
+        xchg = {self.config.currency: 1, self.config.target: self.get_xchg_rate()}
+        sum = 0
+        for key in balances:
+            if key not in xchg:
+                continue
+            sum += xchg[key] * balances[key]
+        return sum
+
+    def tick(self, time_index):
         t = time.perf_counter()
         if t - self.last_tick >= self.period:
-            self.on_tick()
+            self.on_tick(time_index)
             self.last_tick = t
 
-    def on_tick(self) -> bool:
+    def on_tick(self, time_index) -> bool:
         state = self.read_state()
         if self.trade_stream.shape[0] < 2:
             return True
+
+        # Log our current equity
+        balances = self.get_balances()
+        equity = self.calc_equity(balances)
+        self.equity_stream.loc[time_index] = {
+            "equity": equity,
+            "ccy": balances[self.config.currency],
+            "crypto": balances[self.config.target],
+        }
 
         # Get rid of old stuff
         created_time = pd.Timestamp.utcnow() - pd.DateOffset(minutes=self.trading_strategy.window * 2)
@@ -237,8 +270,9 @@ class Trader:
                 self.write_state("buy")
             elif status["status"] == "done":
                 # make sure it's written very first, so even if get_acc fails, we are safe
-                self.write_state("bought") 
-                much = float(self.get_account(self.config.target)["balance"])
+                self.write_state("bought")
+                balances = self.get_balances(False)
+                much = balances[self.config.target]
                 logger.info("Successfuly bought %s, balance: %f %s" % (self.config.target, much, self.config.target))
         elif state == "bought":
             self.period = self.tick_period * 4
@@ -302,7 +336,8 @@ class Trader:
                 self.write_state("bought")
             elif status["status"] == "done":
                 self.write_state("buy")
-                much = float(self.get_account(self.config.currency)["balance"])
+                balances = self.get_balances(False)
+                much = balances[self.config.currency]
                 logger.info("Successfuly sold %s, balance: %f %s" % (self.config.target, much, self.config.currency))
 
         return True
@@ -317,10 +352,10 @@ class Trader:
             "side": obj["side"],
             "txid": int(obj["trade_id"]),
         }
-        time = pd.to_datetime([obj["time"]])[0]
+        time_index = pd.to_datetime([obj["time"]])[0]
         self.write_num("xchg", new_row["close"])
-        self.trade_stream.loc[time] = new_row
-        self.tick()
+        self.trade_stream.loc[time_index] = new_row
+        self.tick(time_index)
 
     def start_ws_client(self):
         self.ws_client = TraderWSClient(self.pair, self, self.config.sandbox)
@@ -342,6 +377,9 @@ class Trader:
 
     def get_accounts(self):
         return self.cached_obj("accounts", 5, lambda: self.client.get_accounts())
+
+    def get_history(self) -> pd.DataFrame:
+        return self.equity_stream
 
     def get_status(self):
         return self.cached_obj(

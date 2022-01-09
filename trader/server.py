@@ -1,3 +1,5 @@
+import json
+
 from fastapi import FastAPI
 from redis import Redis
 
@@ -40,6 +42,11 @@ async def portfolio():
                 "available": account["available"],
             }
     return {"equity": {"balance": equity, "available": avail_equity}, "holdings": holdings}
+
+
+@app.get("/trader/equity")
+async def history():
+    return json.loads(trader.get_history().to_json())
 
 
 @app.on_event("shutdown")
