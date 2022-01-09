@@ -269,7 +269,7 @@ class Trader:
             if "message" in status:
                 logger.warning("Buy order was cancelled, reverting to buy stage")
                 self.write_state("buy")
-            elif status["status"] != "done" and self.config.autocancel > 0 and float(status["filled_size"] <= 0):
+            elif status["status"] == "open" and self.config.autocancel > 0 and float(status["filled_size"]) <= 0:
                 buy_time = self.read_num("buy_time")
                 if (time.time() - buy_time) >= (self.config.autocancel * 60):
                     logger.warning("Cancelling buy order, as it took much longer than expected")
