@@ -414,6 +414,10 @@ class Trader:
         return self.equity_stream
 
     def get_status(self):
+        fees = self.cached_obj("fees", 5, lambda: self.get_fees())
+        maker = float(fees["maker_fee_rate"])
+        taker = float(fees["taker_fee_rate"])
+        fee_ratio = max(maker, taker)  
         return self.cached_obj(
             "appstatus",
             1,
@@ -422,7 +426,10 @@ class Trader:
                 "current": self.current_price,
                 "change": self.last_change,
                 "state": self.read_state(),
-                "fees": self.cached_obj("fees", 5, lambda: self.get_fees()),
+                "fees": fees,
+                "maker": maker,
+                "taker": taker,
+                "fee_ratio": fee_ratio,
                 "buy": {
                     "price": self.read_num("buy_price"),
                     "trigger": self.read_num("buy_trigger_price"),
