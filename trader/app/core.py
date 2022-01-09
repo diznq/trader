@@ -305,10 +305,10 @@ class Trader:
             fee_ratio = max(maker, taker)
 
             net_sell_price = sell_price
-            # compensate seller fee
-            sell_price = sell_price / (1 - fee_ratio)
             # compensate buyer fee
             sell_price = (sell_price * avail + buy_fees) / avail
+            # compensate seller fee
+            sell_price = sell_price / (1 - fee_ratio)
 
             # Make sure sell price is aligned to tick size of target asset
             sell_price = math.ceil(sell_price * self.config.currency_precision) / self.config.currency_precision
