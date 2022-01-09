@@ -426,7 +426,6 @@ class Trader:
                 "current": self.current_price,
                 "change": self.last_change,
                 "state": self.read_state(),
-                "fees": fees,
                 "maker": maker,
                 "taker": taker,
                 "volume30d": float(fees["usd_volume"]),
