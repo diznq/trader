@@ -12,9 +12,9 @@
 // this is why they call C++ cancer
 typedef std::chrono::time_point<std::chrono::system_clock, std::chrono::microseconds> timestamp;
 
-#define ROLL_MIN 10
-#define ROLL_MAX 560
-#define ROLL_SCALE 1
+int ROLL_MIN = 10;
+int ROLL_MAX = 560;
+int ROLL_SCALE = 1;
 
 double DIP_MAX=0.2;
 double SELL_MAX=0.2;
@@ -152,7 +152,7 @@ public:
 
 };
 
-std::vector<Record> rolls[(ROLL_MAX + 1) * ROLL_SCALE];
+std::vector<std::vector<Record>> rolls;
 
 double best = 0.0;
 std::mutex mtx;
@@ -215,6 +215,24 @@ int main(int argc, const char **argv){
         .help("buy underprice")
         .scan<'f', double>();
 
+    parser
+        .add_argument("--rmin")
+        .default_value<int>(10)
+        .help("rollinig window minimum size")
+        .scan<'i', int>();
+
+    parser
+        .add_argument("--rmax")
+        .default_value<int>(560)
+        .help("rollinig window maximum size")
+        .scan<'i', int>();
+
+    parser
+        .add_argument("--rscale")
+        .default_value<int>(1)
+        .help("rollinig window scale size")
+        .scan<'i', int>();
+
     try {
         parser.parse_args(argc, argv);
     } catch(const std::runtime_error& err) {
@@ -229,6 +247,12 @@ int main(int argc, const char **argv){
     DIP_MAX = parser.get<double>("buy");
     SELL_MAX = parser.get<double>("sell");
     BUY_UNDERPRICE = parser.get<double>("under");
+
+    ROLL_MAX = parser.get<int>("rmax");
+    ROLL_MIN = parser.get<int>("rmin");
+    ROLL_SCALE = parser.get<int>("rscale");
+
+    rolls.resize((ROLL_MAX + 1) * ROLL_SCALE);
 
     std::cout << "Loading data for " << target << " in " << parser.get<std::string>("csv") <<  std::endl;
 

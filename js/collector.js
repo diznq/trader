@@ -1,7 +1,9 @@
 const ws = require("ws")
 const fs = require("fs")
 
-const f = fs.createWriteStream("dataset.csv")
+const f = fs.createWriteStream("dataset.csv", {
+    flags: "a"
+})
 let written = 0
 
 function start(){
