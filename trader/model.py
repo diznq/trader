@@ -29,3 +29,4 @@ class Config(BaseModel):
     strategy: TradingStrategy
     place_immediately: bool
     tick_rate: float
+    autocancel: float

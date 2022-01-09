@@ -247,6 +247,7 @@ class Trader:
                 self.write_num("buy_cost", total_cost + fees)
                 self.write_num("buy_fees", fees)
                 self.write_num("buy_value", total_cost)
+                self.write_num("buy_time", time.time())
 
                 # Place an order and save response
                 resp = self.client.place_limit_order(
@@ -268,6 +269,12 @@ class Trader:
             if "message" in status:
                 logger.warning("Buy order was cancelled, reverting to buy stage")
                 self.write_state("buy")
+            elif status["status"] != "done" and self.config.autocancel > 0 and float(status["filled_size"] <= 0):
+                buy_time = self.read_num("buy_time")
+                if (time.time() - buy_time) >= (self.config.autocancel * 60):
+                    logger.warning("Cancelling buy order, as it took much longer than expected")
+                    self.client.cancel_order(order["id"])
+                    self.write_state("buy")
             elif status["status"] == "done":
                 # make sure it's written very first, so even if get_acc fails, we are safe
                 self.write_state("bought")
