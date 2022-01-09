@@ -15,6 +15,7 @@ typedef std::chrono::time_point<std::chrono::system_clock, std::chrono::microsec
 int ROLL_MIN = 10;
 int ROLL_MAX = 560;
 int ROLL_SCALE = 1;
+int TIMEOUT = 0;
 
 double DIP_MAX=0.2;
 double SELL_MAX=0.2;
@@ -22,6 +23,11 @@ double BUY_UNDERPRICE=0.01;
 
 #define MAKER_FEE 0.005
 #define TAKER_FEE 0.005
+
+enum class State {
+    BUYING,
+    SELLING
+};
 
 struct Record {
     long long time;
@@ -99,8 +105,11 @@ public:
     double _ccy = 0.0;
     double _crypto = 0.0;
     double _buyPrice = -1.0;
+    long long _buyTime = 0.0;
     int _buys = 0;
     int _sells = 0;
+    long long _sellDuration = 0LL;
+    State _state = State::BUYING;
 
     Chad() {
 
@@ -113,10 +122,12 @@ public:
     }
 
     bool will_buy(double change, double price) const {
+        if(_state == State::SELLING) return false;
         return _ccy > 0 && change <= _buy;
     }
     
     bool will_sell(double change, double price) const {
+        if(_state == State::BUYING) return false;
         return _buyPrice >= 0 && (price / _buyPrice - 1.0) >= (_sell + MAKER_FEE + TAKER_FEE);
     }
     
@@ -128,6 +139,7 @@ public:
         _crypto += amt;
         _buyPrice = price;
         _buys++;
+        _state = State::SELLING;
     }
         
     void sell(double price){
@@ -135,17 +147,23 @@ public:
         _crypto = 0;
         _buyPrice = -1.0;
         _sells++;
+        _state = State::BUYING;
     }
 
     double equity(double price) const {
         return _ccy; // + _crypto * price / (1.0 + MAKER_FEE);
     }
 
-    double step(const Record& record) {
+    double step(const Record& record, long long timeout) {
         if(will_buy(record.change, record.price)){
             buy(record.price);
+            _buyTime = record.time;
         } else if(will_sell(record.change, record.price)){
             sell(record.price);
+            _sellDuration += (record.time - _buyTime);
+        }
+        if(_state == State::SELLING && timeout > 0L && (record.time - _buyTime) >= timeout){
+            sell(_buyPrice);
         }
         return equity(record.price);
     }
@@ -170,15 +188,17 @@ void worker(){
         Chad ch(1000.0, buy, sell);
         std::vector<Record>& arr = rolls[window];
         for(Record& rec : arr){
-            ch.step(rec);
+            ch.step(rec, TIMEOUT * 60LL * 1000000LL);
         }
+        if(ch._crypto > 0)
+            ch.sell(arr.back().price);
         double eq = ch.equity(arr.back().price);
         mtx.lock();
-        if(eq > best){
+        if(eq > best && ch._sells > 0){
             best = eq;
             double trigger = buy;
             buy = (1 + buy) / (1 - BUY_UNDERPRICE) - 1;
-            printf("Chad(buy=%.6f, sell=%.6f, trigger=%.4f, window=%d): %.3f | buys=%d, sells=%d\n", buy, sell, trigger, window, eq, ch._buys, ch._sells);
+            printf("Chad(buy=%.6f, sell=%.6f, trigger=%.4f, window=%d): %.3f | buys=%d, sells=%d, avg: %lld s\n", buy, sell, trigger, window, eq, ch._buys, ch._sells, ch._sellDuration / ch._sells / 1000000LL);
         }
         mtx.unlock();
     }
@@ -233,6 +253,12 @@ int main(int argc, const char **argv){
         .help("rollinig window scale size")
         .scan<'i', int>();
 
+    parser
+        .add_argument("--to")
+        .default_value<int>(0)
+        .help("sell timeout")
+        .scan<'i', int>();
+
     try {
         parser.parse_args(argc, argv);
     } catch(const std::runtime_error& err) {
@@ -251,6 +277,7 @@ int main(int argc, const char **argv){
     ROLL_MAX = parser.get<int>("rmax");
     ROLL_MIN = parser.get<int>("rmin");
     ROLL_SCALE = parser.get<int>("rscale");
+    TIMEOUT = parser.get<int>("to");
 
     rolls.resize((ROLL_MAX + 1) * ROLL_SCALE);
 
