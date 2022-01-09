@@ -211,19 +211,25 @@ class Trader:
             # Let's determine how much we have and how much we can afford to buy
             ccy = float(self.get_account(self.config.currency)["available"]) * self.config.trade_partition
 
+            fees = self.cached_obj("fees", 5, lambda: self.get_fees())
+            maker = float(fees["maker_fee_rate"])
+            taker = float(fees["taker_fee_rate"])
+            fee_ratio = max(maker, taker)
+
             # Align buy price to tick size of currency and calculate maximum we can buy with that
             buy_price = math.floor(buy_price * self.config.currency_precision) / self.config.currency_precision
             much = ccy / buy_price
 
+
             # As we are trying to buy as quick as possible, we are considered takers
-            much = much / (1 + self.trading_strategy.taker)
+            much = much / (1 + fee_ratio)
 
             # Make sure we use exact tick size for amount
             much = math.floor(much * self.config.target_precision) / self.config.target_precision
 
             # Estimate cost
             total_cost = much * buy_price
-            fees = total_cost * self.trading_strategy.taker
+            fees = total_cost * fee_ratio
 
             if much > 0:
                 logger.info(
@@ -284,18 +290,31 @@ class Trader:
         elif state == "bought":
             self.period = self.tick_period * 4
             buy_price = self.read_num("buy_price")
+            buy_fees = self.read_num("buy_fees")
             if buy_price is None:
                 return True
             sell_price = self.strategy.sell_price(change, buy_price, price)
 
-            # Make sure sell price is aligned to tick size of target asset
-            sell_price = math.ceil(sell_price * self.config.currency_precision) / self.config.currency_precision
-
             # Calculate how much coin we have and how much we'll probably earn, we are maker now
             # as we don't expect sell to happen immediately
             avail = float(self.get_account(self.config.target)["available"])
+
+            fees = self.cached_obj("fees", 5, lambda: self.get_fees())
+            maker = float(fees["maker_fee_rate"])
+            taker = float(fees["taker_fee_rate"])
+            fee_ratio = max(maker, taker)
+
+            net_sell_price = sell_price
+            # compensate seller fee
+            sell_price = sell_price / (1 - fee_ratio)
+            # compensate buyer fee
+            sell_price = (sell_price * avail + buy_fees) / avail
+
+            # Make sure sell price is aligned to tick size of target asset
+            sell_price = math.ceil(sell_price * self.config.currency_precision) / self.config.currency_precision
+
             total_earn = avail * sell_price
-            fees = total_earn * self.trading_strategy.maker
+            fees = total_earn * fee_ratio
 
             logger.info(
                 "Selling %f %s for %f %s (xchg: %f, raw: %f, fees: %f)"
@@ -320,6 +339,8 @@ class Trader:
             self.write_num("sell_revenue", total_earn)
             self.write_num("sell_time", time.time())
             self.write_num("margin", sell_price / buy_price)
+            self.write_num("net_sell_price", net_sell_price)
+            self.write_num("net_margin", net_sell_price / buy_price)
 
             # Place an order and save response
             resp = self.client.place_limit_order(
@@ -383,6 +404,9 @@ class Trader:
         self.trade_stream.to_csv(self.out_path)
         self.ws_client.close()
 
+    def get_fees(self):
+        return self.client._send_message("get", "/fees")
+
     def get_accounts(self):
         return self.cached_obj("accounts", 5, lambda: self.client.get_accounts())
 
@@ -398,6 +422,7 @@ class Trader:
                 "current": self.current_price,
                 "change": self.last_change,
                 "state": self.read_state(),
+                "fees": self.cached_obj("fees", 5, lambda: self.get_fees()),
                 "buy": {
                     "price": self.read_num("buy_price"),
                     "trigger": self.read_num("buy_trigger_price"),
@@ -413,9 +438,11 @@ class Trader:
                     "value": self.read("sell_value"),
                     "revenue": self.read("sell_revenue"),
                     "fees": self.read("sell_fees"),
-                    "time": self.read_num("sell_time")
+                    "time": self.read_num("sell_time"),
+                    "net_price": self.read_num("net_sell_price")
                 },
                 "margin": self.read_num("margin"),
+                "net_margin": self.read_num("net_margin")
             },
         )
 

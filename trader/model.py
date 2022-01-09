@@ -11,8 +11,6 @@ class TradingStrategy(BaseModel):
     buy: float
     buy_underprice: float
     sell: float
-    maker: float
-    taker: float
     window: float
 
 
