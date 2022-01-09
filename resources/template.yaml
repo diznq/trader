@@ -44,6 +44,3 @@ strategy:
   buy_underprice: 0
   # Sell when stocks raise this amount (+ maker + taker)
   sell: 0.01
-  # Fees
-  maker: 0.005
-  taker: 0.005
