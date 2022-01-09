@@ -318,6 +318,7 @@ class Trader:
             self.write_num("sell_value", total_earn - fees)
             self.write_num("sell_fees", fees)
             self.write_num("sell_revenue", total_earn)
+            self.write_num("sell_time", time.time())
             self.write_num("margin", sell_price / buy_price)
 
             # Place an order and save response
@@ -404,6 +405,7 @@ class Trader:
                     "value": self.read("buy_value"),
                     "cost": self.read("buy_cost"),
                     "fees": self.read("buy_fees"),
+                    "time": self.read_num("buy_time")
                 },
                 "sell": {
                     "price": self.read_num("sell_price"),
@@ -411,6 +413,7 @@ class Trader:
                     "value": self.read("sell_value"),
                     "revenue": self.read("sell_revenue"),
                     "fees": self.read("sell_fees"),
+                    "time": self.read_num("sell_time")
                 },
                 "margin": self.read_num("margin"),
             },
