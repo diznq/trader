@@ -15,7 +15,8 @@ typedef std::chrono::time_point<std::chrono::system_clock, std::chrono::microsec
 int ROLL_MIN = 10;
 int ROLL_MAX = 560;
 int ROLL_SCALE = 1;
-int TIMEOUT = 0;
+int SELL_TIMEOUT = 0;
+int BUY_TIMEOUT = 0;
 
 double DIP_MAX=0.2;
 double SELL_MAX=0.2;
@@ -23,8 +24,10 @@ double BUY_UNDERPRICE=0.01;
 
 #define MAKER_FEE 0.005
 #define TAKER_FEE 0.005
+#define MINUTE 60000000LL
 
 enum class State {
+    BUY,
     BUYING,
     SELLING
 };
@@ -105,11 +108,16 @@ public:
     double _ccy = 0.0;
     double _crypto = 0.0;
     double _buyPrice = -1.0;
-    long long _buyTime = 0.0;
+    double _sellPrice = -1.0;
+    double _buyFees = 0.0;
+    long long _buyTime = 0;
+    long long _buyInit = 0;
+    long long _sellDuration = 0LL;
+    long long _buyDuration = 0LL;
     int _buys = 0;
     int _sells = 0;
-    long long _sellDuration = 0LL;
-    State _state = State::BUYING;
+    int _timeouts = 0;
+    State _state = State::BUY;
 
     Chad() {
 
@@ -122,24 +130,20 @@ public:
     }
 
     bool will_buy(double change, double price) const {
-        if(_state == State::SELLING) return false;
+        if(_state != State::BUY) return false;
         return _ccy > 0 && change <= _buy;
-    }
-    
-    bool will_sell(double change, double price) const {
-        if(_state == State::BUYING) return false;
-        return _buyPrice >= 0 && (price / _buyPrice - 1.0) >= (_sell + MAKER_FEE + TAKER_FEE);
     }
     
     void buy(double price){
         double amt = (_ccy / price / (1 + MAKER_FEE));
         amt = floor(amt * 1000000.0) / 1000000.0;
         if(amt <= 0.0) return;
-        _ccy -= amt * price * (1 + MAKER_FEE);
+        double cost = amt * price * (1 + MAKER_FEE);
+        _ccy -= cost;
+        _buyFees = cost - amt * price;
         _crypto += amt;
         _buyPrice = price;
         _buys++;
-        _state = State::SELLING;
     }
         
     void sell(double price){
@@ -147,23 +151,42 @@ public:
         _crypto = 0;
         _buyPrice = -1.0;
         _sells++;
-        _state = State::BUYING;
     }
 
     double equity(double price) const {
         return _ccy; // + _crypto * price / (1.0 + MAKER_FEE);
     }
 
-    double step(const Record& record, long long timeout) {
+    double step(const Record& record, double underprice, long long buy_timeout, long long sell_timeout) {
         if(will_buy(record.change, record.price)){
-            buy(record.price);
-            _buyTime = record.time;
-        } else if(will_sell(record.change, record.price)){
-            sell(record.price);
-            _sellDuration += (record.time - _buyTime);
+            _buyPrice = record.price * (1 - underprice);
+            _buyInit = record.time;
+            _state = State::BUYING;
         }
-        if(_state == State::SELLING && timeout > 0L && (record.time - _buyTime) >= timeout){
-            sell(_buyPrice);
+
+        if(_state == State::BUYING){
+            if(record.price <= _buyPrice){
+                buy(_buyPrice);
+                _buyTime = record.time;
+                _sellPrice = _buyPrice * (1.0 + _sell);
+                _sellPrice = (_sellPrice * _crypto + _buyFees) / _crypto;
+                _sellPrice = _sellPrice / (1 - MAKER_FEE);
+                _buyDuration += _buyTime - _buyInit;
+                _state = State::SELLING;
+            } else if(buy_timeout > 0L && (record.time - _buyInit) >= buy_timeout){
+                _state = State::BUY;
+                _timeouts++;
+            }
+        } else if(_state == State::SELLING){
+            if(record.price >= _sellPrice){
+                sell(_sellPrice);
+                _sellDuration += (record.time - _buyTime);
+                _state = State::BUY;
+            } else if(sell_timeout > 0L && (record.time - _buyTime) >= sell_timeout){
+                sell(_buyPrice);
+                _sellDuration += (record.time - _buyTime);
+                _state = State::BUY;
+            }
         }
         return equity(record.price);
     }
@@ -172,23 +195,28 @@ public:
 
 std::vector<std::vector<Record>> rolls;
 
-double best = 0.0;
+double best = -1.0;
 std::mutex mtx;
 
 void worker(){
     std::random_device dev;
     std::mt19937 rng(dev());
     std::uniform_int_distribution<std::mt19937::result_type> wnd(ROLL_MIN, ROLL_MAX);
+    std::uniform_int_distribution<std::mt19937::result_type> bto(0, BUY_TIMEOUT);
+    std::uniform_int_distribution<std::mt19937::result_type> sto(0, SELL_TIMEOUT);
     std::uniform_real_distribution<double> dbl;
 
     while(true){
         int window = wnd(rng) * ROLL_SCALE;
         double buy = dbl(rng) * -DIP_MAX;
         double sell = dbl(rng) * SELL_MAX;
+        double underprice = dbl(rng) * BUY_UNDERPRICE;
+        int bt = bto(rng);
+        int st = sto(rng);
         Chad ch(1000.0, buy, sell);
         std::vector<Record>& arr = rolls[window];
         for(Record& rec : arr){
-            ch.step(rec, TIMEOUT * 60LL * 1000000LL);
+            ch.step(rec, underprice, bt * MINUTE, st * MINUTE);
         }
         if(ch._crypto > 0)
             ch.sell(arr.back().price);
@@ -196,9 +224,8 @@ void worker(){
         mtx.lock();
         if(eq > best && ch._sells > 0){
             best = eq;
-            double trigger = buy;
-            buy = (1 + buy) / (1 - BUY_UNDERPRICE) - 1;
-            printf("Chad(buy=%.6f, sell=%.6f, trigger=%.4f, window=%d): %.3f | buys=%d, sells=%d, avg: %lld s\n", buy, sell, trigger, window, eq, ch._buys, ch._sells, ch._sellDuration / ch._sells / 1000000LL);
+            printf("Chad(buy=%.6f, sell=%.6f, under=%.4f, window=%3d, bto: %3d, sto: %3d): %.3f | buys=%d, sells=%d, btos: %d, bavg: %lld min, savg: %lld min\n", 
+                    buy, sell, underprice, window, bt, st, eq, ch._buys, ch._sells, ch._timeouts, ch._buyDuration / ch._buys / MINUTE, ch._sellDuration / ch._sells / MINUTE);
         }
         mtx.unlock();
     }
@@ -254,7 +281,13 @@ int main(int argc, const char **argv){
         .scan<'i', int>();
 
     parser
-        .add_argument("--to")
+        .add_argument("--bto")
+        .default_value<int>(0)
+        .help("buy timeout")
+        .scan<'i', int>();
+
+    parser
+        .add_argument("--sto")
         .default_value<int>(0)
         .help("sell timeout")
         .scan<'i', int>();
@@ -277,7 +310,8 @@ int main(int argc, const char **argv){
     ROLL_MAX = parser.get<int>("rmax");
     ROLL_MIN = parser.get<int>("rmin");
     ROLL_SCALE = parser.get<int>("rscale");
-    TIMEOUT = parser.get<int>("to");
+    SELL_TIMEOUT = parser.get<int>("sto");
+    BUY_TIMEOUT = parser.get<int>("bto");
 
     rolls.resize((ROLL_MAX + 1) * ROLL_SCALE);
 
