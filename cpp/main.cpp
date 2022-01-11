@@ -114,6 +114,8 @@ public:
     long long _buyInit = 0;
     long long _sellDuration = 0LL;
     long long _buyDuration = 0LL;
+    long long _buyMaxDur = 0LL;
+    long long _sellMaxDur = 0LL;
     int _buys = 0;
     int _sells = 0;
     int _timeouts = 0;
@@ -172,6 +174,7 @@ public:
                 _sellPrice = (_sellPrice * _crypto + _buyFees) / _crypto;
                 _sellPrice = _sellPrice / (1 - MAKER_FEE);
                 _buyDuration += _buyTime - _buyInit;
+                _buyMaxDur = std::max(_buyMaxDur, _buyTime - _buyInit);
                 _state = State::SELLING;
             } else if(buy_timeout > 0L && (record.time - _buyInit) >= buy_timeout){
                 _state = State::BUY;
@@ -181,10 +184,12 @@ public:
             if(record.price >= _sellPrice){
                 sell(_sellPrice);
                 _sellDuration += (record.time - _buyTime);
+                _sellMaxDur = std::max(_sellMaxDur, (record.time - _buyTime));
                 _state = State::BUY;
             } else if(sell_timeout > 0L && (record.time - _buyTime) >= sell_timeout){
-                sell(_buyPrice);
+                sell(record.price);
                 _sellDuration += (record.time - _buyTime);
+                _sellMaxDur = std::max(_sellMaxDur, (record.time - _buyTime));
                 _state = State::BUY;
             }
         }
@@ -224,8 +229,8 @@ void worker(){
         mtx.lock();
         if(eq > best && ch._sells > 0){
             best = eq;
-            printf("Chad(buy=%.6f, sell=%.6f, under=%.4f, window=%3d, bto: %3d, sto: %3d): %.3f | buys=%d, sells=%d, btos: %d, bavg: %lld min, savg: %lld min\n", 
-                    buy, sell, underprice, window, bt, st, eq, ch._buys, ch._sells, ch._timeouts, ch._buyDuration / ch._buys / MINUTE, ch._sellDuration / ch._sells / MINUTE);
+            printf("Chad(buy=%.6f, sell=%.6f, under=%.4f, window=%3d, bto: %3d, sto: %3d): %.3f | buys=%d, sells=%d, to: %d, bx: %3lld, ba: %3lld, sx: %3lld, sa: %3lld\n", 
+                    buy, sell, underprice, window, bt, st, eq, ch._buys, ch._sells, ch._timeouts, ch._buyMaxDur / MINUTE, ch._buyDuration / ch._buys / MINUTE, ch._sellMaxDur / MINUTE, ch._sellDuration / ch._sells / MINUTE);
         }
         mtx.unlock();
     }
