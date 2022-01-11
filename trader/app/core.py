@@ -157,7 +157,10 @@ class Trader:
     def tick(self, time_index):
         t = time.perf_counter()
         if t - self.last_tick >= self.period:
-            self.on_tick(time_index)
+            try:
+                self.on_tick(time_index)
+            except Exception as ex:
+                logger.error("Tick failed with exception", exc_info=ex)
             self.last_tick = t
 
     def on_tick(self, time_index) -> bool:
