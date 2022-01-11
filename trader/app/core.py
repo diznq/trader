@@ -223,7 +223,6 @@ class Trader:
             buy_price = math.floor(buy_price * self.config.currency_precision) / self.config.currency_precision
             much = ccy / buy_price
 
-
             # As we are trying to buy as quick as possible, we are considered takers
             much = much / (1 + fee_ratio)
 
@@ -420,7 +419,7 @@ class Trader:
         fees = self.cached_obj("fees", 5, lambda: self.get_fees())
         maker = float(fees["maker_fee_rate"])
         taker = float(fees["taker_fee_rate"])
-        fee_ratio = max(maker, taker)  
+        fee_ratio = max(maker, taker)
         return self.cached_obj(
             "appstatus",
             1,
@@ -440,7 +439,7 @@ class Trader:
                     "value": self.read_num("buy_value"),
                     "cost": self.read_num("buy_cost"),
                     "fees": self.read_num("buy_fees"),
-                    "time": self.read_num("buy_time")
+                    "time": self.read_num("buy_time"),
                 },
                 "sell": {
                     "price": self.read_num("sell_price"),
@@ -449,10 +448,10 @@ class Trader:
                     "revenue": self.read_num("sell_revenue"),
                     "fees": self.read_num("sell_fees"),
                     "time": self.read_num("sell_time"),
-                    "net_price": self.read_num("net_sell_price")
+                    "net_price": self.read_num("net_sell_price"),
                 },
                 "margin": self.read_num("margin"),
-                "net_margin": self.read_num("net_margin")
+                "net_margin": self.read_num("net_margin"),
             },
         )
 
