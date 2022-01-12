@@ -22,6 +22,8 @@ double DIP_MAX=0.2;
 double SELL_MAX=0.2;
 double BUY_UNDERPRICE=0.01;
 
+#define SLOTS_MAX 4
+
 #define MAKER_FEE 0.005
 #define TAKER_FEE 0.005
 #define MINUTE 60000000LL
@@ -103,8 +105,8 @@ std::vector<Record> roll(const std::vector<Record>& records, long long minutes){
 
 class Chad {
 public:
-    double _buy = -0.01;
-    double _sell = 0.01;
+    double _buy[SLOTS_MAX];
+    double _sell[SLOTS_MAX];
     double _ccy = 0.0;
     double _crypto = 0.0;
     double _buyPrice = -1.0;
@@ -119,21 +121,23 @@ public:
     int _buys = 0;
     int _sells = 0;
     int _timeouts = 0;
+    int _round = 0;
+    int _rounds = 1;
     State _state = State::BUY;
 
     Chad() {
 
     }
 
-    Chad(double cash, double buy, double sell){
+    Chad(double cash, double* buy, double* sell){
         _ccy = cash;
-        _buy = buy;
-        _sell = sell;
+        memcpy(_buy, buy, sizeof(_buy));
+        memcpy(_sell, sell, sizeof(_sell));
     }
 
     bool will_buy(double change, double price) const {
         if(_state != State::BUY) return false;
-        return _ccy > 0 && change <= _buy;
+        return _ccy > 0 && change <= _buy[_round];
     }
     
     void buy(double price){
@@ -153,6 +157,10 @@ public:
         _crypto = 0;
         _buyPrice = -1.0;
         _sells++;
+        _round++;
+        if(_round >= _rounds){
+            _round = 0;
+        }
     }
 
     double equity(double price) const {
@@ -170,7 +178,7 @@ public:
             if(record.price <= _buyPrice){
                 buy(_buyPrice);
                 _buyTime = record.time;
-                _sellPrice = _buyPrice * (1.0 + _sell);
+                _sellPrice = _buyPrice * (1.0 + _sell[_round]);
                 _sellPrice = (_sellPrice * _crypto + _buyFees) / _crypto;
                 _sellPrice = _sellPrice / (1 - MAKER_FEE);
                 _buyDuration += _buyTime - _buyInit;
@@ -211,14 +219,20 @@ void worker(){
     std::uniform_int_distribution<std::mt19937::result_type> sto(0, SELL_TIMEOUT);
     std::uniform_real_distribution<double> dbl;
 
+    double buy[SLOTS_MAX];
+    double sell[SLOTS_MAX];
+
     while(true){
         int window = wnd(rng) * ROLL_SCALE;
-        double buy = dbl(rng) * -DIP_MAX;
-        double sell = dbl(rng) * SELL_MAX;
+        for(int i=0; i<SLOTS_MAX; i++){
+            buy[i] = dbl(rng) * -DIP_MAX;
+            sell[i] = dbl(rng) * SELL_MAX;
+        }
         double underprice = dbl(rng) * BUY_UNDERPRICE;
         int bt = bto(rng);
         int st = sto(rng);
         Chad ch(1000.0, buy, sell);
+        ch._rounds = SLOTS_MAX;
         std::vector<Record>& arr = rolls[window];
         for(Record& rec : arr){
             ch.step(rec, underprice, bt * MINUTE, st * MINUTE);
@@ -229,14 +243,32 @@ void worker(){
         mtx.lock();
         if(eq > best && ch._sells > 0){
             best = eq;
-            printf("Chad(buy=%.6f, sell=%.6f, under=%.4f, window=%3d, bto: %3d, sto: %3d): %.3f | buys=%d, sells=%d, to: %d, bx: %3lld, ba: %3lld, sx: %3lld, sa: %3lld\n", 
-                    buy, sell, underprice, window, bt, st, eq, ch._buys, ch._sells, ch._timeouts, ch._buyMaxDur / MINUTE, ch._buyDuration / ch._buys / MINUTE, ch._sellMaxDur / MINUTE, ch._sellDuration / ch._sells / MINUTE);
+            printf("------------------\n");
+            printf("Equity: %.4f\n", eq);
+            printf("Rounds: %d\n", ch._rounds);
+            printf("Underprice: %.6f\n", underprice);
+            printf("Buys: %d, sells: %d\n", ch._buys, ch._sells);
+            printf("Buy timeouts: %d\n", ch._timeouts);
+            printf("Average buy: %lld minutes, average sell: %lld minutes\n", ch._buyDuration / ch._buys / MINUTE, ch._sellDuration / ch._sells / MINUTE);
+            printf("Max buy: %lld minutes, max sell: %lld minutes\n", ch._buyMaxDur / MINUTE, ch._sellMaxDur / MINUTE);
+            printf("Buy: ");
+            for(int i=0; i<ch._rounds;i++){
+                printf("%.6f, ", ch._buy[i]);
+            }
+            printf("\nSell: ");
+            for(int i=0; i<ch._rounds;i++){
+                printf("%.6f, ", ch._sell[i]);
+            }
+            printf("\n");
+            //printf("Chad(buy=%.6f, sell=%.6f, under=%.4f, window=%3d, bto: %3d, sto: %3d): %.3f | buys=%d, sells=%d, to: %d, bx: %3lld, ba: %3lld, sx: %3lld, sa: %3lld\n", 
+            //        buy, sell, underprice, window, bt, st, eq, ch._buys, ch._sells, ch._timeouts, ch._buyMaxDur / MINUTE, ch._buyDuration / ch._buys / MINUTE, ch._sellMaxDur / MINUTE, ch._sellDuration / ch._sells / MINUTE);
         }
         mtx.unlock();
     }
 }
 
 int main(int argc, const char **argv){
+    int filter = 0;
     argparse::ArgumentParser parser("simulation");
     
     parser
@@ -297,6 +329,12 @@ int main(int argc, const char **argv){
         .help("sell timeout")
         .scan<'i', int>();
 
+    parser
+        .add_argument("--last")
+        .default_value<int>(0)
+        .help("last n minutes")
+        .scan<'i', int>();
+
     try {
         parser.parse_args(argc, argv);
     } catch(const std::runtime_error& err) {
@@ -318,6 +356,8 @@ int main(int argc, const char **argv){
     SELL_TIMEOUT = parser.get<int>("sto");
     BUY_TIMEOUT = parser.get<int>("bto");
 
+    filter = parser.get<int>("last");
+
     rolls.resize((ROLL_MAX + 1) * ROLL_SCALE);
 
     std::cout << "Loading data for " << target << " in " << parser.get<std::string>("csv") <<  std::endl;
@@ -332,6 +372,15 @@ int main(int argc, const char **argv){
     while(std::getline(f, line)){
         if(line.find(target) == std::string::npos) continue;
         records.emplace_back(Record(line));
+    }
+
+    if(filter > 0 && records.size()){
+        long long before = records.back().time - filter * MINUTE;
+        std::cout << "Size before: " << records.size() << std::endl;
+        records.erase(std::remove_if(records.begin(), records.end(), [before](Record rec) -> bool {
+            return rec.time < before;
+        }), records.end());
+        std::cout << "Size after: " << records.size() << std::endl;
     }
 
     std::cout << "Precomputing rolling maxes" << std::endl;

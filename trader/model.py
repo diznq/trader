@@ -1,3 +1,4 @@
+from typing import List
 from pydantic import BaseModel
 
 
@@ -8,9 +9,9 @@ class ApiKey(BaseModel):
 
 
 class TradingStrategy(BaseModel):
-    buy: float
+    buy: List[float]
     buy_underprice: float
-    sell: float
+    sell: List[float]
     window: float
 
 

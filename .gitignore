@@ -8,3 +8,4 @@ cpp/*.exe
 .vscode/
 js/node_modules/
 /*.csv
+private/*

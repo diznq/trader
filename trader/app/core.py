@@ -195,14 +195,17 @@ class Trader:
         self.last_change = change
 
         state = self.read_state()
+        round = self.read_num("round")
+        if round is None:
+            round = 0
         # logger.info( "%s | %s | Max: %f, now: %f, chg: %f" % (self.pair, state, last, price, change) )
         if state == "buy":
             self.period = self.tick_period
             buy_price = price
 
             if self.config.place_immediately:
-                buy_price = self.strategy.buy_price(change, last, price)
-            elif not self.strategy.will_buy(change, price):
+                buy_price = self.strategy.buy_price(change, last, price, round)
+            elif not self.strategy.will_buy(change, price, round):
                 return True
 
             if buy_price is None:
@@ -295,7 +298,7 @@ class Trader:
             buy_fees = self.read_num("buy_fees")
             if buy_price is None:
                 return True
-            sell_price = self.strategy.sell_price(change, buy_price, price)
+            sell_price = self.strategy.sell_price(change, buy_price, price, round)
 
             # Calculate how much coin we have and how much we'll probably earn, we are maker now
             # as we don't expect sell to happen immediately
@@ -367,6 +370,7 @@ class Trader:
                 self.write_state("bought")
             elif status["status"] == "done":
                 self.write_state("buy")
+                self.write_num("round", round + 1)
                 balances = self.get_balances(False)
                 much = balances[self.config.currency]
                 logger.info("Successfuly sold %s, balance: %f %s" % (self.config.target, much, self.config.currency))
@@ -420,6 +424,9 @@ class Trader:
         maker = float(fees["maker_fee_rate"])
         taker = float(fees["taker_fee_rate"])
         fee_ratio = max(maker, taker)
+        round = self.read_num("round")
+        if round is None:
+            round = 0
         return self.cached_obj(
             "appstatus",
             1,
@@ -432,6 +439,7 @@ class Trader:
                 "taker": taker,
                 "volume30d": float(fees["usd_volume"]),
                 "fee_ratio": fee_ratio,
+                "round": round,
                 "buy": {
                     "price": self.read_num("buy_price"),
                     "trigger": self.read_num("buy_trigger_price"),
