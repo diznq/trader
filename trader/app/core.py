@@ -198,6 +198,7 @@ class Trader:
         round = self.read_num("round")
         if round is None:
             round = 0
+        round = int(round)
         # logger.info( "%s | %s | Max: %f, now: %f, chg: %f" % (self.pair, state, last, price, change) )
         if state == "buy":
             self.period = self.tick_period
@@ -427,6 +428,7 @@ class Trader:
         round = self.read_num("round")
         if round is None:
             round = 0
+        round = int(round)
         return self.cached_obj(
             "appstatus",
             1,
