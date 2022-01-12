@@ -245,6 +245,7 @@ void worker(){
             best = eq;
             printf("------------------\n");
             printf("Equity: %.4f\n", eq);
+            printf("Window size: %d\n", window);
             printf("Rounds: %d\n", ch._rounds);
             printf("Underprice: %.6f\n", underprice);
             printf("Buys: %d, sells: %d\n", ch._buys, ch._sells);
