@@ -84,6 +84,10 @@ class Trader:
                 self.write_num(account["currency"], float(account["balance"]))
 
         self.equity_stream = pd.DataFrame(columns=["equity", "ccy", "crypto"], index=pd.to_datetime([], utc=True))
+        self.equity_stream.index.rename("time")
+        if os.path.exists("data/equity_stream.csv"):
+            self.equity_stream = pd.read_csv("data/equity_stream.csv", parse_dates=["time"]).set_index("time")
+        
         balances = self.get_balances(False)
         self.start_ws_client()
 
@@ -409,6 +413,7 @@ class Trader:
         logger.info("Shutting down")
         self.active = False
         self.trade_stream.to_csv(self.out_path)
+        self.equity_stream.to_csv("data/equity_stream.csv")
         self.ws_client.close()
 
     def get_fees(self):
