@@ -84,7 +84,7 @@ class Trader:
                 self.write_num(account["currency"], float(account["balance"]))
 
         self.equity_stream = pd.DataFrame(columns=["equity", "ccy", "crypto"], index=pd.to_datetime([], utc=True))
-        self.equity_stream.index.rename("time")
+        self.equity_stream.index.name = "time"
         if os.path.exists("data/equity_stream.csv"):
             self.equity_stream = pd.read_csv("data/equity_stream.csv", parse_dates=["time"]).set_index("time")
         
