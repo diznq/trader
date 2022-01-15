@@ -6,8 +6,10 @@
 #include <vector>
 #include <deque>
 #include <random>
-#include "argparse.hpp"
-#include "date.h"
+#include <array>
+#include <algorithm>
+#include "lib/argparse.hpp"
+#include "lib/date.h"
 
 // this is why they call C++ cancer
 typedef std::chrono::time_point<std::chrono::system_clock, std::chrono::microseconds> timestamp;
@@ -23,10 +25,12 @@ double SELL_MAX=0.2;
 double BUY_UNDERPRICE=0.01;
 
 #define SLOTS_MAX 4
-
+#define VARIANTS_MAX 4096
+#define SURVIVORS 5
 #define MAKER_FEE 0.005
 #define TAKER_FEE 0.005
 #define MINUTE 60000000LL
+#define INITIAL_CASH 1000.0
 
 enum class State {
     BUY,
@@ -103,10 +107,8 @@ std::vector<Record> roll(const std::vector<Record>& records, long long minutes){
     return copy;
 }
 
-class Chad {
-public:
-    double _buy[SLOTS_MAX];
-    double _sell[SLOTS_MAX];
+class Trader {
+private:
     double _ccy = 0.0;
     double _crypto = 0.0;
     double _buyPrice = -1.0;
@@ -122,15 +124,30 @@ public:
     int _sells = 0;
     int _timeouts = 0;
     int _round = 0;
-    int _rounds = 1;
+    int _lineage = 0;
     State _state = State::BUY;
 
-    Chad() {
+public:
+    double _buy[SLOTS_MAX];
+    double _sell[SLOTS_MAX];
+    double _underprice = 0.0;
+    long long _buyTimeout = 0;
+    long long _sellTimeout = 0;
+    int _window = 120;
+    int _rounds = 1;
+
+    Trader() {
 
     }
 
-    Chad(double cash, double* buy, double* sell){
-        _ccy = cash;
+    Trader(double* buy, double* sell, int rounds, int window, double underprice, long long bto, long long sto, int lineage=0){
+        _ccy = INITIAL_CASH;
+        _window = window;
+        _underprice = underprice;
+        _buyTimeout = bto;
+        _sellTimeout = sto;
+        _rounds = rounds;
+        _lineage = lineage;
         memcpy(_buy, buy, sizeof(_buy));
         memcpy(_sell, sell, sizeof(_sell));
     }
@@ -141,6 +158,7 @@ public:
     }
     
     void buy(double price){
+        if(_ccy <= 0.0) return;
         double amt = (_ccy / price / (1 + MAKER_FEE));
         amt = floor(amt * 1000000.0) / 1000000.0;
         if(amt <= 0.0) return;
@@ -153,6 +171,7 @@ public:
     }
         
     void sell(double price){
+        if(_crypto <= 0.0) return;
         _ccy += _crypto * price * (1 - TAKER_FEE);
         _crypto = 0;
         _buyPrice = -1.0;
@@ -167,9 +186,9 @@ public:
         return _ccy; // + _crypto * price / (1.0 + MAKER_FEE);
     }
 
-    double step(const Record& record, double underprice, long long buy_timeout, long long sell_timeout) {
+    double step(const Record& record) {
         if(will_buy(record.change, record.price)){
-            _buyPrice = record.price * (1 - underprice);
+            _buyPrice = record.price * (1 - _underprice);
             _buyInit = record.time;
             _state = State::BUYING;
         }
@@ -184,7 +203,7 @@ public:
                 _buyDuration += _buyTime - _buyInit;
                 _buyMaxDur = std::max(_buyMaxDur, _buyTime - _buyInit);
                 _state = State::SELLING;
-            } else if(buy_timeout > 0L && (record.time - _buyInit) >= buy_timeout){
+            } else if(_buyTimeout > 0L && (record.time - _buyInit) >= _buyTimeout){
                 _state = State::BUY;
                 _timeouts++;
             }
@@ -194,7 +213,7 @@ public:
                 _sellDuration += (record.time - _buyTime);
                 _sellMaxDur = std::max(_sellMaxDur, (record.time - _buyTime));
                 _state = State::BUY;
-            } else if(sell_timeout > 0L && (record.time - _buyTime) >= sell_timeout){
+            } else if(_sellTimeout > 0L && (record.time - _buyTime) >= _sellTimeout){
                 sell(record.price);
                 _sellDuration += (record.time - _buyTime);
                 _sellMaxDur = std::max(_sellMaxDur, (record.time - _buyTime));
@@ -202,6 +221,42 @@ public:
             }
         }
         return equity(record.price);
+    }
+
+    void print(double price) const {
+        printf("------------------ Lineage: %d\n", _lineage);
+        printf("Equity: %.4f\n", equity(price));
+        printf("Window size: %d\n", _window);
+        printf("Rounds: %d\n", _rounds);
+        printf("Underprice: %.6f\n", _underprice);
+        printf("Buys: %d, sells: %d\n", _buys, _sells);
+        printf("Buy timeouts: %d\n", _timeouts);
+        printf("Average buy: %lld minutes, average sell: %lld minutes\n", _buyDuration / _buys / MINUTE, _sellDuration / _sells / MINUTE);
+        printf("Max buy: %lld minutes, max sell: %lld minutes\n", _buyMaxDur / MINUTE, _sellMaxDur / MINUTE);
+        printf("Buy: ");
+        for(int i=0; i<_rounds;i++){
+            printf("%.6f, ", _buy[i]);
+        }
+        printf("\nSell: ");
+        for(int i=0; i<_rounds;i++){
+            printf("%.6f, ", _sell[i]);
+        }
+        printf("\n");
+    }
+
+    bool operator<(const Trader& trader) const {
+        return _ccy < trader._ccy;
+    }
+
+    Trader mutate(const Trader& mate) const {
+        double buys[SLOTS_MAX];
+        double sells[SLOTS_MAX];
+        for(int i = 0; i < SLOTS_MAX; i++){
+            buys[i] = 0.5 * _buy[i] + 0.5 * mate._buy[i];
+            sells[i] = 0.5 * _sell[i] + 0.5 * mate._sell[i];
+        }
+        int lineage = std::max(_lineage, mate._lineage) + 1;
+        return Trader(buys, sells, (_rounds + mate._rounds) / 2, (_window + mate._window) / 2, (_underprice + mate._underprice) / 2.0, (_buyTimeout + mate._buyTimeout) / 2, (_sellTimeout + mate._sellTimeout) / 2, lineage);
     }
 
 };
@@ -222,49 +277,50 @@ void worker(){
     double buy[SLOTS_MAX];
     double sell[SLOTS_MAX];
 
+    std::array<Trader, VARIANTS_MAX> traders;
+    size_t offset = 0;
+
     while(true){
-        int window = wnd(rng) * ROLL_SCALE;
-        for(int i=0; i<SLOTS_MAX; i++){
-            buy[i] = dbl(rng) * -DIP_MAX;
-            sell[i] = dbl(rng) * SELL_MAX;
-        }
-        double underprice = dbl(rng) * BUY_UNDERPRICE;
-        int bt = bto(rng);
-        int st = sto(rng);
-        Chad ch(1000.0, buy, sell);
-        ch._rounds = SLOTS_MAX;
-        std::vector<Record>& arr = rolls[window];
-        for(Record& rec : arr){
-            ch.step(rec, underprice, bt * MINUTE, st * MINUTE);
-        }
-        if(ch._crypto > 0)
-            ch.sell(arr.back().price);
-        double eq = ch.equity(arr.back().price);
-        mtx.lock();
-        if(eq > best && ch._sells > 0){
-            best = eq;
-            printf("------------------\n");
-            printf("Equity: %.4f\n", eq);
-            printf("Window size: %d\n", window);
-            printf("Rounds: %d\n", ch._rounds);
-            printf("Underprice: %.6f\n", underprice);
-            printf("Buys: %d, sells: %d\n", ch._buys, ch._sells);
-            printf("Buy timeouts: %d\n", ch._timeouts);
-            printf("Average buy: %lld minutes, average sell: %lld minutes\n", ch._buyDuration / ch._buys / MINUTE, ch._sellDuration / ch._sells / MINUTE);
-            printf("Max buy: %lld minutes, max sell: %lld minutes\n", ch._buyMaxDur / MINUTE, ch._sellMaxDur / MINUTE);
-            printf("Buy: ");
-            for(int i=0; i<ch._rounds;i++){
-                printf("%.6f, ", ch._buy[i]);
+        // create new chromosomes randomly (except first few survivors)
+        for(size_t t = offset; t < VARIANTS_MAX; t++){
+            int window = wnd(rng) * ROLL_SCALE;
+            for(int i=0; i<SLOTS_MAX; i++){
+                buy[i] = dbl(rng) * -DIP_MAX;
+                sell[i] = dbl(rng) * SELL_MAX;
             }
-            printf("\nSell: ");
-            for(int i=0; i<ch._rounds;i++){
-                printf("%.6f, ", ch._sell[i]);
-            }
-            printf("\n");
-            //printf("Chad(buy=%.6f, sell=%.6f, under=%.4f, window=%3d, bto: %3d, sto: %3d): %.3f | buys=%d, sells=%d, to: %d, bx: %3lld, ba: %3lld, sx: %3lld, sa: %3lld\n", 
-            //        buy, sell, underprice, window, bt, st, eq, ch._buys, ch._sells, ch._timeouts, ch._buyMaxDur / MINUTE, ch._buyDuration / ch._buys / MINUTE, ch._sellMaxDur / MINUTE, ch._sellDuration / ch._sells / MINUTE);
+            double underprice = dbl(rng) * BUY_UNDERPRICE;
+            int bt = bto(rng);
+            int st = sto(rng);
+            traders[t] = Trader(buy, sell, SLOTS_MAX, window, underprice, bt, st);
         }
-        mtx.unlock();
+
+        for(Trader& trader : traders){
+            std::vector<Record>& arr = rolls[trader._window];
+            for(Record& rec : arr){
+                trader.step(rec);
+            }
+            double last = arr.back().price;
+            trader.sell(last);
+            double eq = trader.equity(last);
+            mtx.lock();
+            if(eq > best){
+                best = eq;
+                trader.print(last);
+            }
+            mtx.unlock();
+        }
+
+        std::sort(traders.rbegin(), traders.rend());
+        std::array<Trader, SURVIVORS> bestBreed;
+        for(int i=0; i < SURVIVORS; i++) bestBreed[i] = traders[i];
+
+        offset = 0;
+        for(size_t i = 0; i < SURVIVORS; i++){
+            for(size_t j = 0; j < SURVIVORS; j++, offset++){
+                traders[offset] = bestBreed[i].mutate(bestBreed[j]);
+            }
+        }
+        offset = SURVIVORS * SURVIVORS;
     }
 }
 
