@@ -21,7 +21,7 @@ async def root():
 
 @app.get("/trader/portfolio")
 async def portfolio():
-    return trader.cached_obj("appstatus", 1, lambda: trader.get_portfolio())
+    return trader.cached_obj("portfolio", 1, lambda: trader.get_portfolio())
 
 
 @app.get("/trader/equity", response_class=PlainTextResponse)
