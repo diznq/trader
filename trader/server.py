@@ -12,7 +12,7 @@ redis = Redis()
 cfg = load_config()
 logger = get_logger()
 
-trader = Trader(redis, cfg, "stock_dataset.csv")
+trader = Trader(redis, cfg)
 
 
 @app.get("/trader/")

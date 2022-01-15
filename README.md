@@ -9,7 +9,7 @@ Python trading bot
 # Installing
 ```bash
 # Create virtual env first and install dependencies
-python -m venv venv
+py -3.8 -m venv venv
 venv/bin/activate
 pip install poetry
 poetry install
@@ -23,3 +23,15 @@ Run following command to run trader server:
 # Run trader
 uvicorn trader.server:app --port 8000
 ```
+
+# Running simulations
+In order to run simulation, C++17 compiler is required, i.e. clang or gcc or even MSVC.
+To compile simulations, run:
+```bash
+clang -O3 cpp/main.cpp -std=c++17 -o cpp/main.exe
+```
+To run simulations, run:
+```
+cpp/main --pair LTC-EUR
+```
+See `cpp/main -h` to see more options.

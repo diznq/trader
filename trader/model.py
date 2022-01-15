@@ -1,4 +1,5 @@
-from typing import List
+from typing import List, Optional
+
 from pydantic import BaseModel
 
 
@@ -17,6 +18,7 @@ class TradingStrategy(BaseModel):
 
 class Config(BaseModel):
     sandbox: bool
+    initial_dataset: Optional[str] = "stock_dataset.csv"
     currency: str
     target: str
     target_precision: int

@@ -33,8 +33,9 @@ class Trader:
     current_price: float = 0
     current_max: float = 0
 
-    def __init__(self, redis: Redis, config: Config, in_data: str = None) -> None:
+    def __init__(self, redis: Redis, config: Config) -> None:
         pair = config.target + "-" + config.currency
+        in_data = config.initial_dataset
         self.pair = pair
         self.tick_period = 1.0 / config.tick_rate
         self.period = self.tick_period
@@ -47,15 +48,28 @@ class Trader:
         self.last_tick = time.perf_counter()
         self.out_path = "data/" + config.target + "_" + config.currency + ".csv"
 
+        logger.info(f"Initial dataset located at {in_data}")
+
         if not os.path.exists(self.out_path):
-            df = pd.read_csv(
-                in_data,
-                header=None,
-                names=["seq", "symbol", "close", "bid", "ask", "side", "time", "txid"],
-                parse_dates=["time"],
-            ).set_index("time")
+            df = None
+            logger.info("Loading initial dataset")
+            if os.path.exists(in_data):
+                df = pd.read_csv(
+                    in_data,
+                    header=None,
+                    names=["seq", "symbol", "close", "bid", "ask", "side", "time", "txid"],
+                    parse_dates=["time"],
+                ).set_index("time")
+            else:
+                logger.warn(f"Input data path {in_data} doesn't exist, creating empty dataset instead")
+                df = pd.DataFrame(
+                    columns=["seq", "symbol", "close", "bid", "ask", "side", "txid"],
+                    index=pd.to_datetime([], utc=True),
+                )
+                df.index.name = "time"
             df = df[df["symbol"] == pair]
             df.to_csv(self.out_path)
+            logger.info("Initial dataset loaded")
 
         # Prepare dynamic stuff
         apikey = self.config.apikey
@@ -87,7 +101,7 @@ class Trader:
         self.equity_stream.index.name = "time"
         if os.path.exists("data/equity_stream.csv"):
             self.equity_stream = pd.read_csv("data/equity_stream.csv", parse_dates=["time"]).set_index("time")
-        
+
         balances = self.get_balances(False)
         self.start_ws_client()
 

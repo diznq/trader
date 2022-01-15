@@ -1,6 +1,9 @@
 # Sandbox mode
 sandbox: true
 
+# Path to initial dataset
+initial_dataset: dataset.csv
+
 # Ticks per second
 tick_rate: 4
 
@@ -39,8 +42,8 @@ strategy:
   # Time window that we calculate max stock price in, i.e. 360 = maximum price in 6 hours
   window: 40
   # Buy when stocks dip this amount
-  buy: [-0.01]
+  buy: [ -0.01, -0.02 ]
   # Buy underpricing (buy for buy price * (1 - this))
-  buy_underprice: 0
+  buy_underprice: 0.01
   # Sell when stocks raise this amount (+ maker + taker)
-  sell: [0.01]
+  sell: [ 0.01, 0.02 ]

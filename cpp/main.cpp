@@ -303,19 +303,19 @@ int main(int argc, const char **argv){
     parser
         .add_argument("--rmin")
         .default_value<int>(10)
-        .help("rollinig window minimum size")
+        .help("rolling window minimum size")
         .scan<'i', int>();
 
     parser
         .add_argument("--rmax")
         .default_value<int>(560)
-        .help("rollinig window maximum size")
+        .help("rolling window maximum size")
         .scan<'i', int>();
 
     parser
         .add_argument("--rscale")
         .default_value<int>(1)
-        .help("rollinig window scale size")
+        .help("rolling window scale size")
         .scan<'i', int>();
 
     parser
