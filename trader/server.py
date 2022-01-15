@@ -1,6 +1,5 @@
-import json
-
 from fastapi import FastAPI
+from fastapi.responses import PlainTextResponse
 from redis import Redis
 
 from trader.app.core import Trader
@@ -17,36 +16,17 @@ trader = Trader(redis, cfg)
 
 @app.get("/trader/")
 async def root():
-    return trader.get_status()
+    return trader.cached_obj("appstatus", 1, lambda: trader.get_status())
 
 
 @app.get("/trader/portfolio")
 async def portfolio():
-    accounts = trader.get_accounts()
-    holdings = dict()
-    equity = 0
-    avail_equity = 0
-    whitelist = [cfg.target, cfg.currency]
-    for account in accounts:
-        if account["currency"] in whitelist:
-            if account["currency"] == cfg.currency:
-                equity += float(account["balance"])
-                avail_equity += float(account["available"])
-            elif account["currency"] == cfg.target:
-                xchg = trader.get_xchg_rate()
-                equity += float(account["balance"]) * xchg
-                avail_equity += float(account["available"]) * xchg
-            holdings[account["currency"]] = {
-                "balance": account["balance"],
-                "hold": account["hold"],
-                "available": account["available"],
-            }
-    return {"equity": {"balance": equity, "available": avail_equity}, "holdings": holdings}
+    return trader.cached_obj("appstatus", 1, lambda: trader.get_portfolio())
 
 
-@app.get("/trader/equity")
+@app.get("/trader/equity", response_class=PlainTextResponse)
 async def history():
-    return json.loads(trader.get_history().to_json())
+    return trader.get_history().to_csv()
 
 
 @app.on_event("shutdown")

@@ -448,41 +448,60 @@ class Trader:
         if round is None:
             round = 0
         round = int(round)
-        return self.cached_obj(
-            "appstatus",
-            1,
-            lambda: {
-                "max": self.current_max,
-                "current": self.current_price,
-                "change": self.last_change,
-                "state": self.read_state(),
-                "maker": maker,
-                "taker": taker,
-                "volume30d": float(fees["usd_volume"]),
-                "fee_ratio": fee_ratio,
-                "round": round,
-                "buy": {
-                    "price": self.read_num("buy_price"),
-                    "trigger": self.read_num("buy_trigger_price"),
-                    "amount": self.read_num("buy_amount"),
-                    "value": self.read_num("buy_value"),
-                    "cost": self.read_num("buy_cost"),
-                    "fees": self.read_num("buy_fees"),
-                    "time": self.read_num("buy_time"),
-                },
-                "sell": {
-                    "price": self.read_num("sell_price"),
-                    "amount": self.read_num("sell_amount"),
-                    "value": self.read_num("sell_value"),
-                    "revenue": self.read_num("sell_revenue"),
-                    "fees": self.read_num("sell_fees"),
-                    "time": self.read_num("sell_time"),
-                    "net_price": self.read_num("net_sell_price"),
-                },
-                "margin": self.read_num("margin"),
-                "net_margin": self.read_num("net_margin"),
+        return {
+            "max": self.current_max,
+            "current": self.current_price,
+            "change": self.last_change,
+            "state": self.read_state(),
+            "maker": maker,
+            "taker": taker,
+            "volume30d": float(fees["usd_volume"]),
+            "fee_ratio": fee_ratio,
+            "round": round,
+            "buy": {
+                "price": self.read_num("buy_price"),
+                "trigger": self.read_num("buy_trigger_price"),
+                "amount": self.read_num("buy_amount"),
+                "value": self.read_num("buy_value"),
+                "cost": self.read_num("buy_cost"),
+                "fees": self.read_num("buy_fees"),
+                "time": self.read_num("buy_time"),
             },
-        )
+            "sell": {
+                "price": self.read_num("sell_price"),
+                "amount": self.read_num("sell_amount"),
+                "value": self.read_num("sell_value"),
+                "revenue": self.read_num("sell_revenue"),
+                "fees": self.read_num("sell_fees"),
+                "time": self.read_num("sell_time"),
+                "net_price": self.read_num("net_sell_price"),
+            },
+            "margin": self.read_num("margin"),
+            "net_margin": self.read_num("net_margin"),
+        }
+
+    def get_portfolio(self):
+        accounts = self.get_accounts()
+        cfg = self.config
+        holdings = dict()
+        equity = 0
+        avail_equity = 0
+        whitelist = [cfg.target, cfg.currency]
+        for account in accounts:
+            if account["currency"] in whitelist:
+                if account["currency"] == cfg.currency:
+                    equity += float(account["balance"])
+                    avail_equity += float(account["available"])
+                elif account["currency"] == cfg.target:
+                    xchg = self.get_xchg_rate()
+                    equity += float(account["balance"]) * xchg
+                    avail_equity += float(account["available"]) * xchg
+                holdings[account["currency"]] = {
+                    "balance": account["balance"],
+                    "hold": account["hold"],
+                    "available": account["available"],
+                }
+        return {"equity": {"balance": equity, "available": avail_equity}, "holdings": holdings}
 
 
 class TraderWSClient(cbpro.WebsocketClient):
