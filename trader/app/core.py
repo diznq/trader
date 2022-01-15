@@ -12,7 +12,7 @@ from redis import Redis
 from trader.logs import get_logger
 from trader.model import Config, TradingStrategy
 from trader.strategy.base import BaseStrategy
-from trader.strategy.chad import Chad
+from trader.strategy.dipper import Dipper
 
 logger = get_logger()
 
@@ -42,7 +42,7 @@ class Trader:
         self.name = "Trader:" + pair.replace("-", ":")
         self.trading_strategy = config.strategy
         self.config = config
-        self.strategy = Chad(config.strategy)
+        self.strategy = Dipper(config.strategy)
         self.redis = redis
         self.active = True
         self.last_tick = time.perf_counter()
@@ -219,6 +219,7 @@ class Trader:
         round = int(round)
         # logger.info( "%s | %s | Max: %f, now: %f, chg: %f" % (self.pair, state, last, price, change) )
         if state == "buy":
+            # In this stage we haven't bought anything yet and we are looking to buy something
             self.period = self.tick_period
             buy_price = price
 
@@ -293,6 +294,8 @@ class Trader:
                     logger.error("Buying failed, reason: %s" % (resp["message"]))
                     self.write_state("buy")
         elif state == "buying":
+            # In this stage we already place a limit buy order and are waiting for it's completion
+            # if the buy order was cancelled (by user in UI), we go back to buy stage
             self.period = self.tick_period * 4
             order = json.loads(self.read("buy_response"))
             status = self.client.get_order(order["id"])
@@ -306,12 +309,14 @@ class Trader:
                     self.client.cancel_order(order["id"])
                     self.write_state("buy")
             elif status["status"] == "done":
-                # make sure it's written very first, so even if get_acc fails, we are safe
+                # Make sure it's written very first, so even if get_account fails, we are safe
                 self.write_state("bought")
                 balances = self.get_balances(False)
                 much = balances[self.config.target]
                 logger.info("Successfuly bought %s, balance: %f %s" % (self.config.target, much, self.config.target))
         elif state == "bought":
+            # In this stage we successfuly obtained new crypto currency and we try to sell it by placing
+            # a new limit sell order, accounting for buy/sell fees
             self.period = self.tick_period * 4
             buy_price = self.read_num("buy_price")
             buy_fees = self.read_num("buy_fees")
@@ -381,6 +386,9 @@ class Trader:
                 self.write_state("bought")
 
         elif state == "selling":
+            # In this stage we are waiting for completion of limit sell order,
+            # if the order was cancelled, we revert back to sell stage, otherwise
+            # if the order was completed, we go back to buy stage
             self.period = self.tick_period * 4
             order = json.loads(self.read("sell_response"))
             status = self.client.get_order(order["id"])
@@ -409,6 +417,9 @@ class Trader:
         time_index = pd.to_datetime([obj["time"]])[0]
         self.write_num("xchg", new_row["close"])
         self.trade_stream.loc[time_index] = new_row
+        # Make sure we go through tick fn, so we don't update every now and then
+        # but rather in predefined intervals. In this fashion, we don't get hit by
+        # rate limiter
         self.tick(time_index)
 
     def start_ws_client(self):

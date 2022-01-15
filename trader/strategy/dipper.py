@@ -4,7 +4,7 @@ from trader.model import TradingStrategy
 from trader.strategy.base import BaseStrategy
 
 
-class Chad(BaseStrategy):
+class Dipper(BaseStrategy):
     def __init__(self, strategy: TradingStrategy) -> None:
         super().__init__(strategy)
 
