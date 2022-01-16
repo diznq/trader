@@ -305,6 +305,7 @@ void worker(){
 
         for(Trader& trader : traders){
             std::vector<Record>& arr = rolls[trader._window];
+            if(arr.empty()) continue;
             for(Record& rec : arr){
                 trader.step(rec);
             }
