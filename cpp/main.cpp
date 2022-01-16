@@ -414,10 +414,8 @@ int main(int argc, const char **argv){
 
     parser
         .add_argument("--means")
-        .action([](const auto&) {
-            USE_MEANS = true;
-        })
-        .nargs(1);
+        .default_value(false)
+        .implicit_value(true);
 
     try {
         parser.parse_args(argc, argv);
@@ -439,6 +437,8 @@ int main(int argc, const char **argv){
     ROLL_SCALE = parser.get<int>("rscale");
     SELL_TIMEOUT = parser.get<int>("sto");
     BUY_TIMEOUT = parser.get<int>("bto");
+
+    USE_MEANS = parser["--means"] == true;
 
     filter = parser.get<int>("last");
 
