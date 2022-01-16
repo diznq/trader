@@ -300,7 +300,7 @@ class Trader:
             self.period = self.tick_period * 4
             order = json.loads(self.read("buy_response"))
             status = self.client.get_order(order["id"])
-            trigger_max = self.read_num("trigger_max")
+            trigger_max = self.read_num("buy_trigger_max")
             if "message" in status:
                 logger.warning("Buy order was cancelled, reverting to buy stage")
                 self.write_state("buy")
@@ -480,6 +480,7 @@ class Trader:
             "buy": {
                 "price": self.read_num("buy_price"),
                 "trigger": self.read_num("buy_trigger_price"),
+                "trigger_max": self.read_num("buy_trigger_max"),
                 "amount": self.read_num("buy_amount"),
                 "value": self.read_num("buy_value"),
                 "cost": self.read_num("buy_cost"),
