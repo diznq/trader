@@ -24,6 +24,8 @@ double DIP_MAX=0.2;
 double SELL_MAX=0.2;
 double BUY_UNDERPRICE=0.01;
 
+bool USE_MEANS=false;
+
 #define SLOTS_MAX 4
 #define VARIANTS_MAX 4096
 #define SURVIVORS 10
@@ -69,10 +71,13 @@ std::vector<Record> roll(const std::vector<Record>& records, long long minutes){
     double maxSoFar = 0.0;
     long long maxTime = 0;
 
+    double sum = 0.0;
+
     // This implementation is inefficient as hell, but simple enough
     for(size_t i=0; i<copy.size(); i++){
         Record& now = copy[i];
         frame.emplace_back(now);
+        sum += now.price;
         if(now.price > maxSoFar){
             maxSoFar = now.price;
             maxTime = now.time;
@@ -80,20 +85,25 @@ std::vector<Record> roll(const std::vector<Record>& records, long long minutes){
 
         long long bound = now.time - window;
         while(!frame.empty() && frame.front().time < bound){
+            sum -= frame.front().price;
             frame.pop_front();
         }
 
-        if(maxTime < bound){
-            maxSoFar = 0.0;
-        }
+        if(!USE_MEANS){
+            if(maxTime < bound){
+                maxSoFar = 0.0;
+            }
 
-        if(maxSoFar == 0.0){
-            for(Record& rec : frame){
-                if(rec.price > maxSoFar){
-                    maxSoFar = rec.price;
-                    maxTime = rec.time;
+            if(maxSoFar == 0.0){
+                for(Record& rec : frame){
+                    if(rec.price > maxSoFar){
+                        maxSoFar = rec.price;
+                        maxTime = rec.time;
+                    }
                 }
             }
+        } else {
+            maxSoFar = sum / frame.size();
         }
 
         now.max = maxSoFar;
@@ -233,6 +243,7 @@ public:
     }
 
     void print(double price) const {
+        if(_buys == 0 || _sells == 0) return;
         printf("------------------ Lineage: %d\n", _lineage);
         printf("Equity: %.4f\n", equity(price));
         printf("Window size: %d\n", _window);
@@ -330,7 +341,6 @@ void worker(){
                 traders[offset] = bestBreed[i].mutate(bestBreed[j]);
             }
         }
-        offset = SURVIVORS * SURVIVORS;
     }
 }
 
@@ -402,6 +412,13 @@ int main(int argc, const char **argv){
         .help("last n minutes")
         .scan<'i', int>();
 
+    parser
+        .add_argument("--means")
+        .action([](const auto&) {
+            USE_MEANS = true;
+        })
+        .nargs(1);
+
     try {
         parser.parse_args(argc, argv);
     } catch(const std::runtime_error& err) {
@@ -450,7 +467,7 @@ int main(int argc, const char **argv){
         std::cout << "Size after: " << records.size() << std::endl;
     }
 
-    std::cout << "Precomputing rolling maxes" << std::endl;
+    std::cout << (!USE_MEANS?"Precomputing rolling maxes":"Precomputing rolling means") << std::endl;
 
     for(int i=ROLL_MIN; i<=ROLL_MAX; i++){
         //std::cout << "Precomputing rolling max with window " << (i * ROLL_SCALE) << std::endl;
