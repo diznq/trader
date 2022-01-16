@@ -26,9 +26,7 @@ double BUY_UNDERPRICE=0.01;
 
 #define SLOTS_MAX 4
 #define VARIANTS_MAX 4096
-#define SURVIVORS 5
-#define MAKER_FEE 0.005
-#define TAKER_FEE 0.005
+#define SURVIVORS 10
 #define MINUTE 60000000LL
 #define INITIAL_CASH 1000.0
 
@@ -125,6 +123,7 @@ private:
     int _timeouts = 0;
     int _round = 0;
     int _lineage = 0;
+    double _volume = 0.0;
     State _state = State::BUY;
 
 public:
@@ -152,6 +151,14 @@ public:
         memcpy(_sell, sell, sizeof(_sell));
     }
 
+    double get_fees() const {
+        if(_volume < 10000.0) return 0.005;
+        if(_volume < 50000.0) return 0.0035;
+        if(_volume < 100000.0) return 0.0015;
+        if(_volume < 1000000.0) return 0.0010;
+        return 0.0008;
+    }
+
     bool will_buy(double change, double price) const {
         if(_state != State::BUY) return false;
         return _ccy > 0 && change <= _buy[_round];
@@ -159,11 +166,12 @@ public:
     
     void buy(double price){
         if(_ccy <= 0.0) return;
-        double amt = (_ccy / price / (1 + MAKER_FEE));
+        double amt = (_ccy / price / (1 + get_fees()));
         amt = floor(amt * 1000000.0) / 1000000.0;
         if(amt <= 0.0) return;
-        double cost = amt * price * (1 + MAKER_FEE);
+        double cost = amt * price * (1 + get_fees());
         _ccy -= cost;
+        _volume += cost;
         _buyFees = cost - amt * price;
         _crypto += amt;
         _buyPrice = price;
@@ -172,7 +180,8 @@ public:
         
     void sell(double price){
         if(_crypto <= 0.0) return;
-        _ccy += _crypto * price * (1 - TAKER_FEE);
+        _ccy += _crypto * price * (1 - get_fees());
+        _volume += _crypto * price;
         _crypto = 0;
         _buyPrice = -1.0;
         _sells++;
@@ -183,7 +192,7 @@ public:
     }
 
     double equity(double price) const {
-        return _ccy; // + _crypto * price / (1.0 + MAKER_FEE);
+        return _ccy; // + _crypto * price / (1.0 + get_fees());
     }
 
     double step(const Record& record) {
@@ -199,7 +208,7 @@ public:
                 _buyTime = record.time;
                 _sellPrice = _buyPrice * (1.0 + _sell[_round]);
                 _sellPrice = (_sellPrice * _crypto + _buyFees) / _crypto;
-                _sellPrice = _sellPrice / (1 - MAKER_FEE);
+                _sellPrice = _sellPrice / (1 - get_fees());
                 _buyDuration += _buyTime - _buyInit;
                 _buyMaxDur = std::max(_buyMaxDur, _buyTime - _buyInit);
                 _state = State::SELLING;
