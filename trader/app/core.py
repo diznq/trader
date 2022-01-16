@@ -493,6 +493,7 @@ class Trader:
                 "price": self.read_num("buy_price"),
                 "trigger": self.read_num("buy_trigger_price"),
                 "trigger_max": self.read_num("buy_trigger_max"),
+                "imm_drop": self.read_num("buy_imm_drop"),
                 "amount": self.read_num("buy_amount"),
                 "value": self.read_num("buy_value"),
                 "cost": self.read_num("buy_cost"),
