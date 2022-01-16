@@ -272,6 +272,7 @@ class Trader:
                 # Overwrite state first, so it can't happen that due to laggy internet connection
                 # this state-branch would get called once again and try to buy twice :D
                 self.write_state("buying")
+                self.write_num("buy_trigger_max", last)
                 self.write_num("buy_trigger_price", trigger_price)
                 self.write_num("buy_price", buy_price)
                 self.write_num("buy_amount", much)
@@ -299,10 +300,17 @@ class Trader:
             self.period = self.tick_period * 4
             order = json.loads(self.read("buy_response"))
             status = self.client.get_order(order["id"])
+            trigger_max = self.read_num("trigger_max")
             if "message" in status:
                 logger.warning("Buy order was cancelled, reverting to buy stage")
                 self.write_state("buy")
+            elif status["status"] == "open" and self.config.place_immediately and float(status["filled_size"]) <= 0 and trigger_max != last:
+                # Cancel order if place immediately is active and rolling maximum changed
+                logger.warning(f"Cancelling buy order, as it rolling max changed from {trigger_max} to {last}")
+                self.client.cancel_order(order["id"])
+                self.write_state("buy")
             elif status["status"] == "open" and self.config.autocancel > 0 and float(status["filled_size"]) <= 0:
+                # Cancel order if buying timed out
                 buy_time = self.read_num("buy_time")
                 if (time.time() - buy_time) >= (self.config.autocancel * 60):
                     logger.warning("Cancelling buy order, as it took much longer than expected")
