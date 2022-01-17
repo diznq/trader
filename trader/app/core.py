@@ -225,7 +225,6 @@ class Trader:
 
             if self.config.place_immediately:
                 buy_price = self.strategy.buy_price(change, last, price, round)
-                self.write("buy_imm_drop", "1" if self.strategy.will_buy(change, price, round) else "0")
             elif not self.strategy.will_buy(change, price, round):
                 return True
 
@@ -303,20 +302,10 @@ class Trader:
             status = self.client.get_order(order["id"])
             trigger_max = self.read_num("buy_trigger_max")
 
-            if self.config.place_immediately and self.strategy.will_buy(change, price, round):
-                # if order was placed immediately and it dropped anyway, 
-                # do not attempt to cancel order later on
-                self.write("buy_imm_drop", "1")
-
-            imm_drop = self.read("buy_imm_drop")
-            if imm_drop is None:
-                imm_drop = "0"
-            imm_drop = imm_drop == "1"
-
             if "message" in status:
                 logger.warning("Buy order was cancelled, reverting to buy stage")
                 self.write_state("buy")
-            elif status["status"] == "open" and (not imm_drop) and self.config.place_immediately and float(status["filled_size"]) <= 0 and trigger_max != last:
+            elif status["status"] == "open" and self.config.place_immediately and float(status["filled_size"]) <= 0 and trigger_max != last:
                 # Cancel order if place immediately is active and rolling maximum changed
                 logger.warning(f"Cancelling buy order, as it rolling max changed from {trigger_max} to {last}")
                 self.client.cancel_order(order["id"])
@@ -493,7 +482,6 @@ class Trader:
                 "price": self.read_num("buy_price"),
                 "trigger": self.read_num("buy_trigger_price"),
                 "trigger_max": self.read_num("buy_trigger_max"),
-                "imm_drop": self.read_num("buy_imm_drop"),
                 "amount": self.read_num("buy_amount"),
                 "value": self.read_num("buy_value"),
                 "cost": self.read_num("buy_cost"),
