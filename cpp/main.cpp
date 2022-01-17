@@ -24,6 +24,8 @@ double DIP_MAX=0.2;
 double SELL_MAX=0.2;
 double BUY_UNDERPRICE=0.01;
 
+int ROUNDS_MAX=4;
+
 bool USE_MEANS=false;
 
 #define SLOTS_MAX 4
@@ -290,6 +292,7 @@ void worker(){
     std::random_device dev;
     std::mt19937 rng(dev());
     std::uniform_int_distribution<std::mt19937::result_type> wnd(ROLL_MIN, ROLL_MAX);
+    std::uniform_int_distribution<std::mt19937::result_type> rnd(1, ROUNDS_MAX);
     std::uniform_int_distribution<std::mt19937::result_type> bto(0, BUY_TIMEOUT);
     std::uniform_int_distribution<std::mt19937::result_type> sto(0, SELL_TIMEOUT);
     std::uniform_real_distribution<double> dbl;
@@ -304,6 +307,7 @@ void worker(){
         // create new chromosomes randomly (except first few survivors)
         for(size_t t = offset; t < VARIANTS_MAX; t++){
             int window = wnd(rng) * ROLL_SCALE;
+            int rounds = rnd(rng);
             for(int i=0; i<SLOTS_MAX; i++){
                 buy[i] = dbl(rng) * -DIP_MAX;
                 sell[i] = dbl(rng) * SELL_MAX;
@@ -311,7 +315,7 @@ void worker(){
             double underprice = dbl(rng) * BUY_UNDERPRICE;
             int bt = bto(rng);
             int st = sto(rng);
-            traders[t] = Trader(buy, sell, SLOTS_MAX, window, underprice, bt, st);
+            traders[t] = Trader(buy, sell, rounds, window, underprice, bt, st);
         }
 
         for(Trader& trader : traders){
@@ -395,6 +399,12 @@ int main(int argc, const char **argv){
         .scan<'i', int>();
 
     parser
+        .add_argument("--rounds")
+        .default_value<int>(4)
+        .help("max number of rounds")
+        .scan<'i', int>();
+
+    parser
         .add_argument("--bto")
         .default_value<int>(0)
         .help("buy timeout")
@@ -437,6 +447,8 @@ int main(int argc, const char **argv){
     ROLL_SCALE = parser.get<int>("rscale");
     SELL_TIMEOUT = parser.get<int>("sto");
     BUY_TIMEOUT = parser.get<int>("bto");
+    ROUNDS_MAX = parser.get<int>("rounds");
+    
 
     USE_MEANS = parser["--means"] == true;
 
