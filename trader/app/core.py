@@ -32,6 +32,7 @@ class Trader:
     last_change: float = 0
     current_price: float = 0
     current_max: float = 0
+    current_min: float = 0
 
     def __init__(self, redis: Redis, config: Config) -> None:
         pair = config.target + "-" + config.currency
@@ -203,13 +204,15 @@ class Trader:
         df = self.trade_stream.copy()
         # Get current price
         price = df["close"].tail(1)[0]
-        # Get previous max over time window
+        # Get previous min/max over time window
         last = df["close"].rolling(str(self.trading_strategy.window) + "min").max().dropna().tail(2).head(1)[0]
+        last_min = df["close"].rolling(str(self.trading_strategy.window) + "min").min().dropna().tail(2).head(1)[0]
         # Calculate change
         change = price / last - 1
 
         self.current_price = price
         self.current_max = last
+        self.current_min = last_min
         self.last_change = change
 
         state = self.read_state()
@@ -470,6 +473,9 @@ class Trader:
         round = int(round)
         return {
             "max": self.current_max,
+            "min": self.current_min,
+            "spread": self.current_min / self.current_max - 1,
+            "min_margin": self.current_price / self.current_min - 1,
             "current": self.current_price,
             "change": self.last_change,
             "state": self.read_state(),
