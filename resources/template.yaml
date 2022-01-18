@@ -37,6 +37,13 @@ sandbox_apikey:
   passphrase: xxx
   key: base64key
 
+# Tradinig temperature settings, temperature is simply max/min over time window
+temperature:
+  enabled: true
+  min: 0    # Trade only when temperature is > 0
+  max: 0.1  # And only when temperature < 0.1
+  window: 1440 # Over 1440 minutes
+
 # Trading strategy
 strategy:
   # Time window that we calculate max stock price in, i.e. 360 = maximum price in 6 hours

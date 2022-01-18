@@ -33,6 +33,7 @@ class Trader:
     current_price: float = 0
     current_max: float = 0
     current_min: float = 0
+    current_temperature: float = 0
 
     def __init__(self, redis: Redis, config: Config) -> None:
         pair = config.target + "-" + config.currency
@@ -197,7 +198,8 @@ class Trader:
         }
 
         # Get rid of old stuff
-        created_time = pd.Timestamp.utcnow() - pd.DateOffset(minutes=self.trading_strategy.window * 2)
+        req_window = max(self.config.temperature.window, self.trading_strategy.window)
+        created_time = pd.Timestamp.utcnow() - pd.DateOffset(minutes=req_window * 2)
         self.trade_stream = self.trade_stream[self.trade_stream.index > created_time]
 
         # Create a copy that we work with from now on
@@ -210,6 +212,12 @@ class Trader:
         # Calculate change
         change = price / last - 1
 
+        # Calculate temperature
+        temp_min = df["close"].rolling(str(self.config.temperature.window) + "min").min().tail(1)[0]
+        temp_max = df["close"].rolling(str(self.config.temperature.window) + "min").max().tail(1)[0]
+        temperature = temp_max / temp_min - 1
+
+        self.current_temperature = temperature
         self.current_price = price
         self.current_max = last
         self.current_min = last_min
@@ -225,6 +233,10 @@ class Trader:
             # In this stage we haven't bought anything yet and we are looking to buy something
             self.period = self.tick_period
             buy_price = price
+
+            # Prevent trading when temperature is out of band
+            if self.config.temperature.enabled and temperature >= self.config.temperature.max or temperature <= self.config.temperature.min:
+                return True
 
             if self.config.place_immediately:
                 buy_price = self.strategy.buy_price(change, last, price, round)
@@ -243,7 +255,7 @@ class Trader:
             fees = self.cached_obj("fees", 5, lambda: self.get_fees())
             maker = float(fees["maker_fee_rate"])
             taker = float(fees["taker_fee_rate"])
-            fee_ratio = max(maker, taker)
+            fee_ratio = min(maker, taker)
 
             # Align buy price to tick size of currency and calculate maximum we can buy with that
             buy_price = math.floor(buy_price * self.config.currency_precision) / self.config.currency_precision
@@ -343,7 +355,7 @@ class Trader:
             fees = self.cached_obj("fees", 5, lambda: self.get_fees())
             maker = float(fees["maker_fee_rate"])
             taker = float(fees["taker_fee_rate"])
-            fee_ratio = max(maker, taker)
+            fee_ratio = min(maker, taker)
 
             net_sell_price = sell_price
             # compensate buyer fee
@@ -466,7 +478,7 @@ class Trader:
         fees = self.cached_obj("fees", 5, lambda: self.get_fees())
         maker = float(fees["maker_fee_rate"])
         taker = float(fees["taker_fee_rate"])
-        fee_ratio = max(maker, taker)
+        fee_ratio = min(maker, taker)
         round = self.read_num("round")
         if round is None:
             round = 0
@@ -476,6 +488,7 @@ class Trader:
             "min": self.current_min,
             "spread": self.current_min / self.current_max - 1,
             "min_margin": self.current_price / self.current_min - 1,
+            "temperature": self.current_temperature,
             "current": self.current_price,
             "change": self.last_change,
             "state": self.read_state(),

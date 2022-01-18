@@ -8,6 +8,12 @@ class ApiKey(BaseModel):
     passphrase: str
     key: str
 
+class TemperatureDef(BaseModel):
+    enabled: bool
+    min: float
+    max: float
+    window: int
+
 
 class TradingStrategy(BaseModel):
     buy: List[float]
@@ -31,3 +37,4 @@ class Config(BaseModel):
     place_immediately: bool
     tick_rate: float
     autocancel: float
+    temperature: TemperatureDef
