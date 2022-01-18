@@ -483,12 +483,15 @@ class Trader:
         if round is None:
             round = 0
         round = int(round)
+        temperature = self.current_temperature
+        outside_band = temperature >= self.config.temperature.max or temperature <= self.config.temperature.min
         return {
             "max": self.current_max,
             "min": self.current_min,
             "spread": self.current_min / self.current_max - 1,
             "min_margin": self.current_price / self.current_min - 1,
-            "temperature": self.current_temperature,
+            "temperature": temperature,
+            "within_band": not outside_band,
             "current": self.current_price,
             "change": self.last_change,
             "state": self.read_state(),
