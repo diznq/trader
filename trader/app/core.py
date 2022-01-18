@@ -77,6 +77,8 @@ class Trader:
         apikey = self.config.apikey
         df = pd.read_csv(self.out_path, parse_dates=["time"]).set_index("time")
         df = df[df["symbol"] == pair]
+        if "vol" not in df.columns:
+            df["vol"] = 0
         self.trade_stream = df
         if config.sandbox:
             apikey = self.config.sandbox_apikey
@@ -437,6 +439,7 @@ class Trader:
             "bid": float(obj["best_bid"]),
             "ask": float(obj["best_ask"]),
             "side": obj["side"],
+            "vol": float(obj["last_size"]),
             "txid": int(obj["trade_id"]),
         }
         time_index = pd.to_datetime([obj["time"]])[0]
@@ -446,6 +449,20 @@ class Trader:
         # but rather in predefined intervals. In this fashion, we don't get hit by
         # rate limiter
         self.tick(time_index)
+
+    def get_cashflow(self):
+        df = self.trade_stream.copy()
+        df["cash"] = df["close"] * df["vol"]
+        sellers = df[df["side"] == "sell"]
+        buyers = df[df["side"] == "buy"]
+        sell_sum = sellers["cash"].sum()
+        buy_sum = buyers["cash"].sum()
+        return {
+            "buyers": buy_sum,
+            "sellers": sell_sum,
+            "cashflow": sell_sum - buy_sum
+        }
+
 
     def start_ws_client(self):
         self.ws_client = TraderWSClient(self.pair, self, self.config.sandbox)
@@ -520,6 +537,7 @@ class Trader:
                 "time": self.read_num("sell_time"),
                 "net_price": self.read_num("net_sell_price"),
             },
+            "cashflow": self.get_cashflow(),
             "margin": self.read_num("margin"),
             "net_margin": self.read_num("net_margin"),
         }
