@@ -37,7 +37,7 @@ sandbox_apikey:
   passphrase: xxx
   key: base64key
 
-# Tradinig temperature settings, temperature is simply max/min over time window
+# Trading temperature settings, temperature is simply max/min over time window
 temperature:
   enabled: true
   min: 0    # Trade only when temperature is > 0
