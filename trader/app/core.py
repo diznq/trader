@@ -235,7 +235,8 @@ class Trader:
             buy_price = price
 
             # Prevent trading when temperature is out of band
-            if self.config.temperature.enabled and temperature >= self.config.temperature.max or temperature <= self.config.temperature.min:
+            outside_band = temperature >= self.config.temperature.max or temperature <= self.config.temperature.min
+            if self.config.temperature.enabled and outside_band:
                 return True
 
             if self.config.place_immediately:
