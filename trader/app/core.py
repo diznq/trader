@@ -255,10 +255,7 @@ class Trader:
             # Let's determine how much we have and how much we can afford to buy
             ccy = float(self.get_account(self.config.currency)["available"]) * self.config.trade_partition
 
-            fees = self.cached_obj("fees", 5, lambda: self.get_fees())
-            maker = float(fees["maker_fee_rate"])
-            taker = float(fees["taker_fee_rate"])
-            fee_ratio = min(maker, taker)
+            fee_ratio = self.get_flat_fee()
 
             # Align buy price to tick size of currency and calculate maximum we can buy with that
             buy_price = math.floor(buy_price * self.config.currency_precision) / self.config.currency_precision
@@ -355,10 +352,7 @@ class Trader:
             # as we don't expect sell to happen immediately
             avail = float(self.get_account(self.config.target)["available"])
 
-            fees = self.cached_obj("fees", 5, lambda: self.get_fees())
-            maker = float(fees["maker_fee_rate"])
-            taker = float(fees["taker_fee_rate"])
-            fee_ratio = min(maker, taker)
+            fee_ratio = self.get_flat_fee()
 
             net_sell_price = sell_price
             # compensate buyer fee
@@ -492,11 +486,17 @@ class Trader:
     def get_history(self) -> pd.DataFrame:
         return self.equity_stream
 
-    def get_status(self):
+    def get_flat_fee(self):
+        if self.config.forex:
+            return 0
         fees = self.cached_obj("fees", 5, lambda: self.get_fees())
         maker = float(fees["maker_fee_rate"])
         taker = float(fees["taker_fee_rate"])
         fee_ratio = min(maker, taker)
+        return fee_ratio
+
+    def get_status(self):
+        fee_ratio = self.get_flat_fee()
         round = self.read_num("round")
         if round is None:
             round = 0
@@ -513,9 +513,6 @@ class Trader:
             "current": self.current_price,
             "change": self.last_change,
             "state": self.read_state(),
-            "maker": maker,
-            "taker": taker,
-            "volume30d": float(fees["usd_volume"]),
             "fee_ratio": fee_ratio,
             "round": round,
             "buy": {

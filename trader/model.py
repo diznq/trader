@@ -24,6 +24,7 @@ class TradingStrategy(BaseModel):
 
 class Config(BaseModel):
     sandbox: bool
+    forex: bool = False
     initial_dataset: Optional[str] = "stock_dataset.csv"
     currency: str
     target: str
