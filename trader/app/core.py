@@ -322,7 +322,7 @@ class Trader:
             status = self.client.get_order(order["id"])
             trigger_max = self.read_num("buy_trigger_max")
 
-            if "message" in status:
+            if "message" in status and status["message"] == "NotFound":
                 logger.warning("Buy order was cancelled, reverting to buy stage")
                 logger.warning(status)
                 self.write_state("buy")
@@ -424,7 +424,7 @@ class Trader:
             self.period = self.tick_period * 4
             order = json.loads(self.read("sell_response"))
             status = self.client.get_order(order["id"])
-            if "message" in status:
+            if "message" in status and status["message"] == "NotFound":
                 logger.warning("Sell order was cancelled, reverting to bought stage")
                 logger.warning(status)
                 self.write_state("bought")
