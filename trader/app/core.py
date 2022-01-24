@@ -352,6 +352,9 @@ class Trader:
             # as we don't expect sell to happen immediately
             avail = float(self.get_account(self.config.target)["available"])
 
+            if avail <= 0:
+                return True
+
             fee_ratio = self.get_flat_fee()
 
             net_sell_price = sell_price
