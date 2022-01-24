@@ -13,6 +13,7 @@ from trader.logs import get_logger
 from trader.model import Config, TradingStrategy
 from trader.strategy.base import BaseStrategy
 from trader.strategy.dipper import Dipper
+from threading import Lock
 
 logger = get_logger()
 
@@ -34,6 +35,7 @@ class Trader:
     current_max: float = 0
     current_min: float = 0
     current_temperature: float = 0
+    lock = Lock()
 
     def __init__(self, redis: Redis, config: Config) -> None:
         pair = config.target + "-" + config.currency
@@ -182,13 +184,14 @@ class Trader:
         return sum
 
     def tick(self, time_index):
-        t = time.perf_counter()
-        if t - self.last_tick >= self.period:
-            try:
-                self.on_tick(time_index)
-            except Exception as ex:
-                logger.error("Tick failed with exception", exc_info=ex)
-            self.last_tick = t
+        with self.lock:
+            t = time.perf_counter()
+            if t - self.last_tick >= self.period:
+                try:
+                    self.on_tick(time_index)
+                except Exception as ex:
+                    logger.error("Tick failed with exception", exc_info=ex)
+                self.last_tick = t
 
     def on_tick(self, time_index) -> bool:
         state = self.read_state()
