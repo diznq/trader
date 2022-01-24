@@ -75,11 +75,13 @@ class Trader:
 
         # Prepare dynamic stuff
         apikey = self.config.apikey
+        logger.info("Loading cached dataframe")
         df = pd.read_csv(self.out_path, parse_dates=["time"]).set_index("time")
         df = df[df["symbol"] == pair]
         if "vol" not in df.columns:
             df["vol"] = 0
         self.trade_stream = df
+        logger.info("Creating Coinbase client")
         if config.sandbox:
             apikey = self.config.sandbox_apikey
             self.client = cbpro.AuthenticatedClient(
@@ -92,6 +94,7 @@ class Trader:
             self.client = cbpro.AuthenticatedClient(apikey.name, apikey.key, apikey.passphrase)
 
         # Let's cache points of our interest
+        logger.info("Loading account details")
         whitelist = [config.target, config.currency]
         self.accountIds = dict()
         accounts = self.client.get_accounts()
@@ -101,11 +104,13 @@ class Trader:
             if account["currency"] in [config.currency, config.target]:
                 self.write_num(account["currency"], float(account["balance"]))
 
+        logger.info("Loading cached equity stream")
         self.equity_stream = pd.DataFrame(columns=["equity", "ccy", "crypto"], index=pd.to_datetime([], utc=True))
         self.equity_stream.index.name = "time"
         if os.path.exists("data/equity_stream.csv"):
             self.equity_stream = pd.read_csv("data/equity_stream.csv", parse_dates=["time"]).set_index("time")
 
+        logger.info("Loading balanced")
         balances = self.get_balances(False)
         self.start_ws_client()
 
