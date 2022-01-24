@@ -324,6 +324,7 @@ class Trader:
 
             if "message" in status:
                 logger.warning("Buy order was cancelled, reverting to buy stage")
+                logger.warning(status)
                 self.write_state("buy")
             elif status["status"] == "open" and self.config.place_immediately and float(status["filled_size"]) <= 0 and trigger_max != last:
                 # Cancel order if place immediately is active and rolling maximum changed
@@ -357,12 +358,12 @@ class Trader:
             # as we don't expect sell to happen immediately
             avail = float(self.get_account(self.config.target)["available"])
 
-            if avail <= 0:
-                return True
-
             fee_ratio = self.get_flat_fee()
 
             avail = math.floor(avail * self.config.target_precision) / self.config.target_precision
+
+            if avail <= 0:
+                return True
 
             net_sell_price = sell_price
             # compensate buyer fee
@@ -425,6 +426,7 @@ class Trader:
             status = self.client.get_order(order["id"])
             if "message" in status:
                 logger.warning("Sell order was cancelled, reverting to bought stage")
+                logger.warning(status)
                 self.write_state("bought")
             elif status["status"] == "done":
                 self.write_state("buy")
