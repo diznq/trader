@@ -357,6 +357,8 @@ class Trader:
 
             fee_ratio = self.get_flat_fee()
 
+            avail = math.floor(avail * self.config.target_precision) / self.config.target_precision
+
             net_sell_price = sell_price
             # compensate buyer fee
             sell_price = (sell_price * avail + buy_fees) / avail
