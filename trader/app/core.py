@@ -217,6 +217,11 @@ class Trader:
         # Get current price
         price = df["close"].tail(1)[0]
         # Get previous min/max over time window
+
+        frame = df["close"].rolling(str(self.trading_strategy.window) + "min").max().dropna()
+        if frame.shape[0] == 0:
+            return True
+
         last = df["close"].rolling(str(self.trading_strategy.window) + "min").max().dropna().tail(2).head(1)[0]
         last_min = df["close"].rolling(str(self.trading_strategy.window) + "min").min().dropna().tail(2).head(1)[0]
         # Calculate change
@@ -355,7 +360,7 @@ class Trader:
             buy_fees = self.read_num("buy_fees")
             if buy_price is None:
                 return True
-            sell_price = self.strategy.sell_price(change, buy_price, price, round)
+            sell_price = self.strategy.sell_price(change, max(buy_price, price), price, round)
 
             # Calculate how much coin we have and how much we'll probably earn, we are maker now
             # as we don't expect sell to happen immediately
