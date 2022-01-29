@@ -313,6 +313,7 @@ class Trader:
                 resp = self.client.place_limit_order(
                     product_id=self.pair,
                     side="buy",
+                    post_only=True,
                     price=str(buy_price),
                     size=str(much),
                 )
@@ -415,6 +416,7 @@ class Trader:
             resp = self.client.place_limit_order(
                 product_id=self.pair,
                 side="sell",
+                post_only=True,
                 price=str(sell_price),
                 size=str(avail),
             )
