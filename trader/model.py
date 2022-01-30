@@ -8,6 +8,7 @@ class ApiKey(BaseModel):
     passphrase: str
     key: str
 
+
 class TemperatureDef(BaseModel):
     enabled: bool
     min: float

@@ -1,8 +1,8 @@
+from random import random
 from typing import Optional
 
 from trader.model import TradingStrategy
 from trader.strategy.base import BaseStrategy
-from random import random
 
 
 class Yolo(BaseStrategy):

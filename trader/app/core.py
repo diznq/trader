@@ -2,6 +2,7 @@ import json
 import math
 import os
 import time
+from threading import Lock
 from types import LambdaType
 from typing import Dict, Optional
 
@@ -12,8 +13,6 @@ from redis import Redis
 from trader.logs import get_logger
 from trader.model import Config, TradingStrategy
 from trader.strategy.base import BaseStrategy
-from threading import Lock
-
 from trader.strategy.factory import get_strategy
 
 logger = get_logger()
@@ -336,7 +335,12 @@ class Trader:
                 logger.warning("Buy order was cancelled, reverting to buy stage")
                 logger.warning(status)
                 self.write_state("buy")
-            elif status["status"] == "open" and self.config.place_immediately and float(status["filled_size"]) <= 0 and trigger_max != last:
+            elif (
+                status["status"] == "open"
+                and self.config.place_immediately
+                and float(status["filled_size"]) <= 0
+                and trigger_max != last
+            ):
                 # Cancel order if place immediately is active and rolling maximum changed
                 logger.warning(f"Cancelling buy order, as it rolling max changed from {trigger_max} to {last}")
                 self.client.cancel_order(order["id"])
@@ -474,12 +478,7 @@ class Trader:
         buyers = df[df["side"] == "buy"]
         sell_sum = sellers["cash"].sum()
         buy_sum = buyers["cash"].sum()
-        return {
-            "buyers": buy_sum,
-            "sellers": sell_sum,
-            "cashflow": sell_sum - buy_sum
-        }
-
+        return {"buyers": buy_sum, "sellers": sell_sum, "cashflow": sell_sum - buy_sum}
 
     def start_ws_client(self):
         self.ws_client = TraderWSClient(self.pair, self, self.config.sandbox)
