@@ -1,0 +1,25 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: trader
+  labels:
+    app: Trader
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: trader
+  template:
+    metadata:
+      labels:
+        app: trader
+    spec:
+      containers:
+      - name: trader
+        image: trader:latest
+        imagePullPolicy: Never
+        env:
+        - name: REDIS_HOST
+          value: redis
+        ports:
+        - containerPort: 8000
