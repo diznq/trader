@@ -12,8 +12,9 @@ from redis import Redis
 from trader.logs import get_logger
 from trader.model import Config, TradingStrategy
 from trader.strategy.base import BaseStrategy
-from trader.strategy.dipper import Dipper
 from threading import Lock
+
+from trader.strategy.factory import get_strategy
 
 logger = get_logger()
 
@@ -46,7 +47,7 @@ class Trader:
         self.name = "Trader:" + pair.replace("-", ":")
         self.trading_strategy = config.strategy
         self.config = config
-        self.strategy = Dipper(config.strategy)
+        self.strategy = get_strategy(config.trader, config.strategy)
         self.redis = redis
         self.active = True
         self.last_tick = time.perf_counter()

@@ -20,6 +20,7 @@ class TradingStrategy(BaseModel):
     buy_underprice: float
     sell: List[float]
     window: float
+    extra: Optional[object]
 
 
 class Config(BaseModel):
@@ -34,6 +35,7 @@ class Config(BaseModel):
     portfolio: str
     apikey: ApiKey
     sandbox_apikey: ApiKey
+    trader: str = "dipper"
     strategy: TradingStrategy
     place_immediately: bool
     tick_rate: float
