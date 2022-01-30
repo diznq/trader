@@ -18,7 +18,7 @@ class Yolo(BaseStrategy):
     def sell_price(self, change, buy_price, price, round) -> Optional[float]:
         if buy_price is None:
             return None
-        return buy_price * (1 + self.strategy.sell[round % len(self.strategy.sell)])
+        return buy_price * (1.001 + random() * self.strategy.sell[round % len(self.strategy.sell)])
 
     def buy_price(self, change, max_price, price, round) -> Optional[float]:
         if max_price is None:
