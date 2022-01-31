@@ -10,7 +10,7 @@ class Yolo(BaseStrategy):
         super().__init__(strategy)
 
     def will_buy(self, change, price, round) -> bool:
-        return random() < self.strategy.buy
+        return random() < self.strategy.buy[round % len(self.strategy.buy)]
 
     def will_sell(self, change, buy_price, price, round) -> bool:
         return True
