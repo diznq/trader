@@ -330,8 +330,9 @@ class Trader:
             order = json.loads(self.read("buy_response"))
             status = self.client.get_order(order["id"])
             trigger_max = self.read_num("buy_trigger_max")
+            buy_time = self.read_num("buy_time")            
 
-            if "message" in status and status["message"] == "NotFound":
+            if "message" in status and status["message"] == "NotFound" and (time.time() - buy_time) > 60:
                 logger.warning("Buy order was cancelled, reverting to buy stage")
                 logger.warning(status)
                 self.write_state("buy")
@@ -347,7 +348,6 @@ class Trader:
                 self.write_state("buy")
             elif status["status"] == "open" and self.config.autocancel > 0 and float(status["filled_size"]) <= 0:
                 # Cancel order if buying timed out
-                buy_time = self.read_num("buy_time")
                 if (time.time() - buy_time) >= (self.config.autocancel * 60):
                     logger.warning("Cancelling buy order, as it took much longer than expected")
                     self.client.cancel_order(order["id"])
@@ -439,7 +439,9 @@ class Trader:
             self.period = self.tick_period * 4
             order = json.loads(self.read("sell_response"))
             status = self.client.get_order(order["id"])
-            if "message" in status and status["message"] == "NotFound":
+            sell_time = self.read_num("sell_time")
+                
+            if "message" in status and status["message"] == "NotFound" and (time.time() - sell_time) > 60:
                 logger.warning("Sell order was cancelled, reverting to bought stage")
                 logger.warning(status)
                 self.write_state("bought")
