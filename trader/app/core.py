@@ -534,8 +534,8 @@ class Trader:
         return {
             "max": self.current_max,
             "min": self.current_min,
-            "spread": self.current_min / self.current_max - 1,
-            "min_margin": self.current_price / self.current_min - 1,
+            "spread": self.current_min / max(0.00000001, self.current_max) - 1,
+            "min_margin": self.current_price / max(0.00000001, self.current_min) - 1,
             "temperature": temperature,
             "within_band": not outside_band,
             "current": self.current_price,

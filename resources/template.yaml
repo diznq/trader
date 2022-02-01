@@ -1,6 +1,9 @@
 # Sandbox mode
 sandbox: true
 
+# Either redis or poordis
+db: redis
+
 # Path to initial dataset
 initial_dataset: dataset.csv
 

@@ -3,6 +3,7 @@ venv/
 resources/config.yaml
 stock_dataset.csv
 data/*.csv
+data/*.json
 logs/*.log
 cpp/*.exe
 .vscode/

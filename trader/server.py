@@ -5,6 +5,7 @@ from fastapi.responses import PlainTextResponse
 from redis import Redis
 
 from trader.app.core import Trader
+from trader.db.factory import get_db
 from trader.logs import get_logger
 from trader.util import load_config
 
@@ -14,9 +15,10 @@ app = FastAPI()
 cfg = load_config()
 logger = get_logger()
 
-logger.info(f"Redis host: {redis_host}")
-redis = Redis(host=redis_host)
-trader = Trader(redis, cfg)
+logger.info(f"Db host: {redis_host}")
+db_class = get_db(cfg.db)
+db = db_class(host=redis_host)
+trader = Trader(db, cfg)
 
 
 @app.get("/trader/")
