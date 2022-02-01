@@ -25,6 +25,8 @@ portfolio: Default
 # Place buy order immediately
 place_immediately: false
 
+autocancel: 0
+
 # Main API key
 apikey:
   name: hash
