@@ -332,7 +332,9 @@ class Trader:
             trigger_max = self.read_num("buy_trigger_max")
             buy_time = self.read_num("buy_time")            
 
-            if "message" in status and status["message"] == "NotFound" and (time.time() - buy_time) > 60:
+            if "message" in status and status["message"] == "NotFound":
+                if (time.time() - buy_time) < 60:
+                    return False
                 logger.warning("Buy order was cancelled, reverting to buy stage")
                 logger.warning(status)
                 self.write_state("buy")
@@ -441,7 +443,9 @@ class Trader:
             status = self.client.get_order(order["id"])
             sell_time = self.read_num("sell_time")
                 
-            if "message" in status and status["message"] == "NotFound" and (time.time() - sell_time) > 60:
+            if "message" in status and status["message"] == "NotFound":
+                if (time.time() - sell_time) < 60:
+                    return False
                 logger.warning("Sell order was cancelled, reverting to bought stage")
                 logger.warning(status)
                 self.write_state("bought")
