@@ -21,7 +21,7 @@ class Poordis:
         with open("data/poordis.json", "w", encoding="utf-8") as f:
             json.dump(data, f)
 
-    def get(self, key: str) -> Optional[str]:
+    def get(self, key: str) -> Optional[bytes]:
         with self.lock:
             data = self.load_data()
             if key not in data:
@@ -29,7 +29,7 @@ class Poordis:
             item = data[key]
             if item[1] > 0 and time.time() > item[1]:
                 return None
-            return str(item[0])
+            return str(item[0]).encode("utf-8")
 
     def setex(self, key: str, ex: Optional[int], value) -> bool:
         with self.lock:
