@@ -14,7 +14,7 @@ class SmartYolo(BaseStrategy):
         params = self.get_params(trader)
         if params.sell_price is not None and params.price > params.sell_price:
             return False
-        return random() < self.strategy.buy[round % len(self.strategy.buy)]
+        return random() < self.strategy.buy[params.round % len(self.strategy.buy)]
 
     def will_sell(self, trader: Trader) -> bool:
         return True

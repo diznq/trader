@@ -11,7 +11,8 @@ class Yolo(BaseStrategy):
         super().__init__(strategy)
 
     def will_buy(self, trader: Trader) -> bool:
-        return random() < self.strategy.buy[round % len(self.strategy.buy)]
+        params: Params = self.get_params(trader)
+        return random() < self.strategy.buy[params.round % len(self.strategy.buy)]
 
     def will_sell(self, trader: Trader) -> bool:
         return True
