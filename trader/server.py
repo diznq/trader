@@ -7,6 +7,7 @@ from redis import Redis
 from trader.app.core import Trader
 from trader.db.factory import get_db
 from trader.logs import get_logger
+from trader.strategy.factory import get_strategy
 from trader.util import load_config
 
 redis_host = os.environ.get("REDIS_HOST", "localhost")
@@ -18,7 +19,8 @@ logger = get_logger()
 logger.info(f"Db host: {redis_host}")
 db_class = get_db(cfg.db)
 db = db_class(host=redis_host)
-trader = Trader(db, cfg)
+trading_strategy = get_strategy(cfg.trader, cfg.strategy)
+trader = Trader(db, trading_strategy, cfg)
 
 
 @app.get("/trader/")

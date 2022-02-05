@@ -13,7 +13,6 @@ from redis import Redis
 from trader.logs import get_logger
 from trader.model import Config, TradingStrategy
 from trader.strategy.base import BaseStrategy
-from trader.strategy.factory import get_strategy
 
 logger = get_logger()
 
@@ -34,10 +33,11 @@ class Trader:
     current_price: float = 0
     current_max: float = 0
     current_min: float = 0
+    current_round: int = 0
     current_temperature: float = 0
     lock = Lock()
 
-    def __init__(self, redis: Redis, config: Config) -> None:
+    def __init__(self, redis: Redis, trading_strategy: BaseStrategy, config: Config) -> None:
         pair = config.target + "-" + config.currency
         in_data = config.initial_dataset
         self.pair = pair
@@ -46,7 +46,7 @@ class Trader:
         self.name = "Trader:" + pair.replace("-", ":")
         self.trading_strategy = config.strategy
         self.config = config
-        self.strategy = get_strategy(config.trader, config.strategy)
+        self.strategy = trading_strategy
         self.redis = redis
         self.active = True
         self.last_tick = time.perf_counter()
@@ -243,6 +243,7 @@ class Trader:
         if round is None:
             round = 0
         round = int(round)
+        self.current_round = round
         # logger.info( "%s | %s | Max: %f, now: %f, chg: %f" % (self.pair, state, last, price, change) )
         if state == "buy":
             # In this stage we haven't bought anything yet and we are looking to buy something
@@ -255,8 +256,8 @@ class Trader:
                 return True
 
             if self.config.place_immediately:
-                buy_price = self.strategy.buy_price(change, last, price, round)
-            elif not self.strategy.will_buy(change, price, round):
+                buy_price = self.strategy.buy_price(self)
+            elif not self.strategy.will_buy(self):
                 return True
 
             if buy_price is None:
@@ -368,7 +369,7 @@ class Trader:
             buy_fees = self.read_num("buy_fees")
             if buy_price is None:
                 return True
-            sell_price = self.strategy.sell_price(change, max(buy_price, price), price, round)
+            sell_price = self.strategy.sell_price(self)
 
             # Calculate how much coin we have and how much we'll probably earn, we are maker now
             # as we don't expect sell to happen immediately
