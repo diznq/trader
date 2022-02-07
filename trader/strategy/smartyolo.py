@@ -21,7 +21,7 @@ class SmartYolo(BaseStrategy):
 
     def sell_price(self, trader: Trader) -> Optional[float]:
         params: Params = self.get_params(trader)
-        return params.buy_price * (1.001 + random() * self.strategy.sell[params.round % len(self.strategy.sell)])
+        return params.buy_price * (1.01 + random() * self.strategy.sell[params.round % len(self.strategy.sell)])
 
     def buy_price(self, trader: Trader) -> Optional[float]:
         params: Params = self.get_params(trader)
