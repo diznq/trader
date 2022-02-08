@@ -9,10 +9,15 @@ class VM:
     df: pd.DataFrame
     memory = np.zeros(256)
     stk = np.zeros(65536)
+    call_stk = np.zeros(65536, dtype=np.uint32)
     sp = 0
+    csp = 0
     ip = 0
     halted = False
     maxexec = 5000
+
+    def __init__(self, df: pd.DataFrame) -> None:
+        self.df = df
 
     def parse(self, text):
         lines = text.split("\n")
@@ -76,8 +81,15 @@ class VM:
 
         return final
 
-    def execute(self, code):
+    def on_row(self, row) -> float:
+        self.df = self.df.append(row)
+
+    def execute(self, code) -> float:
         steps = 0
+        self.ip = 0
+        self.sp = 0
+        self.csp = 0
+        self.halted = False
         while not self.halted:
             op = code[self.ip]
             getattr(self, op[0])(op[1])
@@ -85,7 +97,10 @@ class VM:
             steps += 1
             if self.ip == len(code) or steps >= self.maxexec:
                 break
-        print("Executed instructions: ", steps)
+
+        if self.sp <= 0:
+            return None
+        return self.stk[self.sp - 1]
 
     def PUSH(self, value):
         self.stk[self.sp] = value
@@ -129,33 +144,42 @@ class VM:
 
     def STD(self, value):
         assert self.sp > 0
-        window = self.POP(0)
+        window = int(self.POP(0))
         df = self.df[fields[value % len(fields)]].tail(window)
         self.PUSH(df.std())
 
     def MAX(self, value):
         assert self.sp > 0
-        window = self.POP(0)
+        window = int(self.POP(0))
         df = self.df[fields[value % len(fields)]].tail(window)
         self.PUSH(df.max())
 
     def MIN(self, value):
         assert self.sp > 0
-        window = self.POP(0)
+        window = int(self.POP(0))
         df = self.df[fields[value % len(fields)]].tail(window)
         self.PUSH(df.min())
 
     def MEDIAN(self, value):
         assert self.sp > 0
-        window = self.POP(0)
+        window = int(self.POP(0))
         df = self.df[fields[value % len(fields)]].tail(window)
         self.PUSH(df.median())
 
     def MEAN(self, value):
         assert self.sp > 0
-        window = self.POP(0)
+        window = int(self.POP(0))
         df = self.df[fields[value % len(fields)]].tail(window)
         self.PUSH(df.mean())
+
+    def READ(self, value):
+        assert self.sp > 0
+        window = int(self.POP(0))
+        df = self.df[fields[value % len(fields)]].tail(window).head(1)
+        if df.shape[0] == 0:
+            self.PUSH(0)
+        else:
+            self.PUSH(df.values[0])
 
     def ADD(self, value):
         assert self.sp > 1
@@ -163,7 +187,9 @@ class VM:
 
     def SUB(self, value):
         assert self.sp > 1
-        self.PUSH(self.POP(0) - self.POP(0))
+        b = self.POP(0)
+        a = self.POP(0)
+        self.PUSH(a - b)
 
     def MUL(self, value):
         assert self.sp > 1
@@ -171,7 +197,9 @@ class VM:
 
     def DIV(self, value):
         assert self.sp > 1
-        self.PUSH(self.POP(0) / self.POP(0))
+        b = self.POP(0)
+        a = self.POP(0)
+        self.PUSH(a / b)
 
     def MOD(self, value):
         assert self.sp > 1
@@ -202,54 +230,58 @@ class VM:
     def JMP(self, value):
         self.ip += value - 1
 
+    def CALL(self, value):
+        self.call_stk[self.csp] = self.ip
+        self.csp += 1
+        self.ip += value - 1
+
+    def RET(self, value):
+        assert self.csp > 0
+        self.csp -= 1
+        self.ip = self.call_stk[self.csp]
+
     def HALT(self, value):
         self.halted = True
+
+    def PRINT(self, value):
+        assert self.sp > 0
+        print(self.stk[self.sp - 1])
 
     def print_top(self):
         print(self.stk[self.sp - 1])
 
+base = pd.read_csv(
+    "stock_dataset.csv",
+    header=None,
+    names=["seq", "symbol", "price", "bid", "ask", "side", "time", "txid", "vol"],
+    parse_dates=["time"],
+).set_index("time")
 
-vm = VM()
+vm = VM(base.head(1000))
+df = base.tail(-1000).head(10000)
+for i in range(1, df.shape[0]):
+    row = df.head(i).tail(1)
+    vm.on_row(row)
+    vm.execute(vm.parse("""
+LOADK 1
+READ 0
+STORE $Current
 
-vm.execute(
-    vm.parse(
-        """
+LOADK 200
+MAX
+STORE $Max200
 
-# Load 0 to Sum
-LOADK 0
-STORE $Sum
-
-# Load 10 to Target
-LOADK 10
-STORE $Target
-
-# Load 0 to Index
-LOADK 0
-STORE $Index
-
-# Begin loop
-Loop: LOAD $Index
-LOAD $Target
-CMPLT
-JNZ Complete
-
-LOAD $Index
+LOAD $Current
+LOAD $Max200
+DIV
 
 DUP
-LOADK 1
-ADD
-STORE $Index
+LOADK 0.99
+CMPLT
+JNZ End
 
-LOAD $Sum
-ADD
-STORE $Sum
+PRINT
 
-JMP Loop
+End: HALT
 
-Complete: LOAD $Sum
-"""
-    )
-)
-vm.print_top()
-
-print(vm.memory[0:3])
+"""))
