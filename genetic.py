@@ -1,6 +1,8 @@
+from typing import Optional, Union
 import pandas as pd
 import numpy as np
 import re
+import random
 
 fields = ["price", "volume", "value"]
 
@@ -13,7 +15,11 @@ class VM:
     sp = 0
     csp = 0
     ip = 0
+    steps = 0
+    ccy = 1000
+    crypto = 0
     halted = False
+    exceeded = False
     maxexec = 5000
 
     def __init__(self, df: pd.DataFrame) -> None:
@@ -84,29 +90,39 @@ class VM:
     def on_row(self, row) -> float:
         self.df = self.df.append(row)
 
-    def execute(self, code) -> float:
-        steps = 0
+    def reset(self):
+        self.steps = 0
         self.ip = 0
         self.sp = 0
         self.csp = 0
         self.halted = False
+        self.exceeded = True
+        self.ccy = 1000
+        self.crypto = 0
+        self.memory = np.zeros(256)
+        self.stk = np.zeros(65536)
+        self.call_stk = np.zeros(65536, dtype=np.uint32)
+
+    def execute(self, code) -> float:
+        self.reset()
         while not self.halted:
             op = code[self.ip]
             getattr(self, op[0])(op[1])
             self.ip += 1
-            steps += 1
-            if self.ip == len(code) or steps >= self.maxexec:
+            self.steps += 1
+            if self.ip == len(code) or self.steps >= self.maxexec:
+                self.exceeded = self.steps >= self.maxexec
                 break
 
         if self.sp <= 0:
             return None
         return self.stk[self.sp - 1]
 
-    def PUSH(self, value):
+    def PUSH(self, value: Union[int, float]):
         self.stk[self.sp] = value
         self.sp += 1
 
-    def POP(self, value):
+    def POP(self, value: Optional[int] = None):
         assert self.sp > 0
         self.sp -= 1
         return self.stk[self.sp]
@@ -129,11 +145,11 @@ class VM:
     def STORE(self, imm: int):
         self.memory[imm] = self.POP(0)
 
-    def DUP(self, value):
+    def DUP(self, value: Optional[int]):
         assert self.sp > 0
         self.PUSH(self.stk[self.sp - 1])
 
-    def DUP2(self, value):
+    def DUP2(self, value: Optional[int]):
         assert self.sp > 1
         b = self.POP(0)
         a = self.POP(0)
@@ -142,37 +158,37 @@ class VM:
         self.PUSH(a)
         self.PUSH(b)
 
-    def STD(self, value):
+    def STD(self, value: int):
         assert self.sp > 0
         window = int(self.POP(0))
         df = self.df[fields[value % len(fields)]].tail(window)
         self.PUSH(df.std())
 
-    def MAX(self, value):
+    def MAX(self, value: int):
         assert self.sp > 0
         window = int(self.POP(0))
         df = self.df[fields[value % len(fields)]].tail(window)
         self.PUSH(df.max())
 
-    def MIN(self, value):
+    def MIN(self, value: int):
         assert self.sp > 0
         window = int(self.POP(0))
         df = self.df[fields[value % len(fields)]].tail(window)
         self.PUSH(df.min())
 
-    def MEDIAN(self, value):
+    def MEDIAN(self, value: int):
         assert self.sp > 0
         window = int(self.POP(0))
         df = self.df[fields[value % len(fields)]].tail(window)
         self.PUSH(df.median())
 
-    def MEAN(self, value):
+    def MEAN(self, value: int):
         assert self.sp > 0
         window = int(self.POP(0))
         df = self.df[fields[value % len(fields)]].tail(window)
         self.PUSH(df.mean())
 
-    def READ(self, value):
+    def READ(self, value: int):
         assert self.sp > 0
         window = int(self.POP(0))
         df = self.df[fields[value % len(fields)]].tail(window).head(1)
@@ -181,74 +197,97 @@ class VM:
         else:
             self.PUSH(df.values[0])
 
-    def ADD(self, value):
+    def ADD(self, value: Optional[int] = None):
         assert self.sp > 1
         self.PUSH(self.POP(0) + self.POP(0))
 
-    def SUB(self, value):
+    def SUB(self, value: Optional[int] = None):
         assert self.sp > 1
         b = self.POP(0)
         a = self.POP(0)
         self.PUSH(a - b)
 
-    def MUL(self, value):
+    def MUL(self, value: Optional[int] = None):
         assert self.sp > 1
         self.PUSH(self.POP(0) * self.POP(0))
 
-    def DIV(self, value):
+    def DIV(self, value: Optional[int] = None):
         assert self.sp > 1
         b = self.POP(0)
         a = self.POP(0)
+        assert b != 0
         self.PUSH(a / b)
 
-    def MOD(self, value):
+    def MOD(self, value: Optional[int] = None):
         assert self.sp > 1
-        self.PUSH(self.POP(0) % self.POP(0))
+        b = self.POP(0)
+        a = self.POP(0)
+        assert b != 0
+        self.PUSH(a % b)
 
-    def CMPEQ(self, value):
+    def CMPEQ(self, value: Optional[int] = None):
         assert self.sp > 1
         self.PUSH(0 if self.POP(0) == self.POP(0) else 1)
 
-    def CMPLT(self, value):
+    def CMPLT(self, value: Optional[int] = None):
         assert self.sp > 1
         self.PUSH(0 if self.POP(0) >= self.POP(0) else 1)
 
-    def CMPLTE(self, value):
+    def CMPLTE(self, value: Optional[int] = None):
         assert self.sp > 1
         self.PUSH(0 if self.POP(0) > self.POP(0) else 1)
 
-    def JZ(self, value):
+    def JZ(self, value: int):
         assert self.sp > 0
         if self.POP(0) == 0:
             self.ip += value - 1
 
-    def JNZ(self, value):
+    def JNZ(self, value: int):
         assert self.sp > 0
         if self.POP(0) != 0:
             self.ip += value - 1
 
-    def JMP(self, value):
+    def JMP(self, value: int):
         self.ip += value - 1
 
-    def CALL(self, value):
+    def CALL(self, value: int):
         self.call_stk[self.csp] = self.ip
         self.csp += 1
         self.ip += value - 1
 
-    def RET(self, value):
+    def RET(self, value: Optional[int] = None):
         assert self.csp > 0
         self.csp -= 1
         self.ip = self.call_stk[self.csp]
 
-    def HALT(self, value):
+    def HALT(self, value: Optional[int] = None):
         self.halted = True
 
-    def PRINT(self, value):
+    def PRINT(self, value: Optional[int] = None):
         assert self.sp > 0
         print(self.stk[self.sp - 1])
 
+    def BUY(self, value: Optional[int] = None):
+        price = self.df["price"].tail(1)[0]
+        amt = self.ccy / price
+        self.ccy -= amt * price
+        self.crypto += amt
+
+    def SELL(self, value: Optional[int] = None):
+        price = self.df["price"].tail(1)[0]
+        self.ccy += self.crypto * price
+        self.crypto = 0
+
+    def get_is(self):
+        censored = ["PRINT", "HALT", "PUSH", "POP"]
+        return [fn for fn in dir(VM) if fn == fn.upper() and fn not in censored]
+
     def print_top(self):
         print(self.stk[self.sp - 1])
+
+    def equity(self):
+        price = self.df["price"].tail(1)[0]
+        return self.ccy + self.crypto * price
 
 base = pd.read_csv(
     "stock_dataset.csv",
@@ -257,31 +296,25 @@ base = pd.read_csv(
     parse_dates=["time"],
 ).set_index("time")
 
-vm = VM(base.head(1000))
-df = base.tail(-1000).head(10000)
-for i in range(1, df.shape[0]):
-    row = df.head(i).tail(1)
-    vm.on_row(row)
-    vm.execute(vm.parse("""
-LOADK 1
-READ 0
-STORE $Current
 
-LOADK 200
-MAX
-STORE $Max200
+for j in range(0, 200000):
+    vm = VM(base.head(1000))
+    isa = vm.get_is()
+    df = base.tail(-1000).head(1000)
+    code = [ [random.choice(isa), random.randint(0, 50)] for x in range(0, 20) ]
+    # print(code)
+    interrupted = False
+    for i in range(0, df.shape[0]):
+        row = df.head(i).tail(1)
+        vm.on_row(row)
+        try:
+            result = vm.execute(code)
+        except BaseException as ex:
+            #print("Steps: ", vm.steps)
+            interrupted = True
+            break
+    
+    if not interrupted:
+        print(vm.equity(), code)
 
-LOAD $Current
-LOAD $Max200
-DIV
-
-DUP
-LOADK 0.99
-CMPLT
-JNZ End
-
-PRINT
-
-End: HALT
-
-"""))
+print(vm.get_is())
