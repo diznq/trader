@@ -6,6 +6,13 @@ import random
 
 fields = ["price", "volume", "value"]
 
+generators = {
+    "float": (lambda x: random.random()),
+    "int": (lambda x: random.randint(0, x)),
+    "sint": (lambda x: random.randint(-x, x)),
+    "item": (lambda x: random.choice(x))
+}
+
 
 class VM:
     df: pd.DataFrame
@@ -297,11 +304,31 @@ base = pd.read_csv(
 ).set_index("time")
 
 
+gen = {
+    "LOADK": (generators["float"], 1),
+    "LOAD": (generators["int"], 10),
+    "STORE": (generators["int"], 10),
+    "MIN": (generators["int"], 2),
+    "MAX": (generators["int"], 2),
+    "STD": (generators["int"], 2),
+    "MEAN": (generators["int"], 2),
+    "MEDIAN": (generators["int"], 2),
+    "JZ": (generators["sint"], 25),
+    "JNZ": (generators["sint"], 25),
+    "JMP": (generators["sint"], 25),
+    "CALL": (generators["sint"], 25),
+    "READ": (generators["int"], 100),
+}
+
 for j in range(0, 200000):
     vm = VM(base.head(1000))
     isa = vm.get_is()
     df = base.tail(-1000).head(1000)
-    code = [ [random.choice(isa), random.randint(0, 50)] for x in range(0, 20) ]
+    code = [ [random.choice(isa), 0 ] for x in range(0, 20) ]
+    for inst in code:
+        if inst[0] in gen:
+            desc = gen[inst[0]]
+            inst[1] = desc[0](desc[1])
     # print(code)
     interrupted = False
     for i in range(0, df.shape[0]):
